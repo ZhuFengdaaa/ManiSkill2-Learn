@@ -138,3 +138,4 @@ tools/torchsparse/
 partnet-mobility-dataset
 
 tools/docker_file/corl/
+logs/

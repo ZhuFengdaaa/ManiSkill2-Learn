@@ -139,3 +139,4 @@ partnet-mobility-dataset
 
 tools/docker_file/corl/
 logs/
+YOUR_LOGGING_DIRECTORY

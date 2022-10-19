@@ -86,7 +86,6 @@ env_cfg = dict(
     type="gym",
     env_name="xxx-v0",
     obs_mode='pointcloud',
-    obs_frame="ee",
     ignore_dones=True,
 )
 

@@ -99,7 +99,12 @@ class PointNet(ExtendedModule):
             else:
                 feature = xyz
 
-            feature = feature.permute(0, 2, 1).contiguous()
+            if len(feature.shape) == 3:
+                feature = feature.permute(0, 2, 1).contiguous()
+            elif len(feature.shape) == 4:
+                feature = feature.permute(0, 1, 3, 2).contiguous()
+            else:
+                raise NotImplementedError
         input_feature = feature
         if 2 in self.feature_transform:
             feature = self.conv1(feature)
@@ -107,11 +112,18 @@ class PointNet(ExtendedModule):
             feature = torch.bmm(feature.transpose(1, 2).contiguous(), trans).transpose(1, 2).contiguous()
             feature = self.conv2(feature)
         else:
-            feature = self.conv(feature)
+            if len(feature.shape) == 3:
+                feature = self.conv(feature)
+            elif len(feature.shape) == 4:
+                b,c = feature.shape[0], feature.shape[1]
+                feature = feature.view(b*c, *feature.shape[2:])
+                feature = self.conv(feature)
+                feature = feature.view(b, c, *feature.shape[1:])
+            else:
+                raise NotImplementedError
         if self.global_feat:
             feature = feature.max(-1)[0]
         else:
             gl_feature = feature.max(-1, keepdims=True)[0].repeat(1, 1, feature.shape[-1])
             feature = torch.cat([feature, gl_feature], dim=1)
-
         return feature

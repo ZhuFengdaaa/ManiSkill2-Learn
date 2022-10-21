@@ -68,7 +68,7 @@ agent_cfg = dict(
 
 train_cfg = dict(
     on_policy=True,
-    total_steps=int(5e6),
+    total_steps=int(25e6),
     warm_steps=0,
     n_steps=int(2e4),
     n_updates=1,
@@ -84,7 +84,7 @@ train_cfg = dict(
 
 env_cfg = dict(
     type="gym",
-    env_name="PickCube-v0",
+    env_name="xxx-v0",
     obs_mode='pointcloud',
     ignore_dones=True,
 )

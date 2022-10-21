@@ -60,6 +60,69 @@ def render_trajectories(trajectory_file, json_name, env_name, control_mode, vide
             video_writer.write(img)
         video_writer.release()
 
+def save_video_with_o3d(trajectory_file, json_name, env_configs, traj_id=0):
+    data = GDict.from_hdf5(trajectory_file)
+    reset_kwargs = get_reset_kwargs_from_json(json_name)
+    env = build_env(ConfigDict(**env_configs))
+
+    # from pynput import keyboard
+    import open3d as o3d
+    vis = o3d.visualization.Visualizer()
+    vis.create_window(visible=False)
+    geometry = o3d.geometry.PointCloud()
+    geometry.points = o3d.utility.Vector3dVector(np.random.random([3,3]))
+    geometry.colors = o3d.utility.Vector3dVector(np.ones([3,3]))
+    vis.add_geometry(geometry)    
+
+    trajectory = data[f'traj_{traj_id}']
+    rrwa = requires_rollout_w_actions(trajectory)
+    if not rrwa:
+        env_states = trajectory['env_states']
+        length = env_states.shape[0]
+    else:
+        env_states = trajectory['env_init_state']
+        length = trajectory['actions'].shape[0] + 1
+
+    env.reset(**reset_kwargs[traj_id])
+
+    idx = 0
+    # def on_press(key):
+    #     nonlocal idx
+    #     if hasattr(key, 'char'):
+    #         if key.char in ['n']:
+    #             idx = idx + 1    
+    #         elif key.char in ['l']:
+    #             if rrwa:
+    #                 print("Cannot go back to the previous frame because env_states is not given for every step.")
+    #             else:
+    #                 idx = max(idx - 1, 0)
+
+    # listener = keyboard.Listener(on_press=on_press)
+    # listener.start()     
+
+    # print("Press 'n' for next frame, 'l' for previous frame, 'h' for Open3d help")
+    while idx < length:
+        if not rrwa:
+            env.set_state(env_states[idx])
+        else:
+            if idx == 0:
+                env.set_state(env_states)
+            else:
+                env.step(trajectory['actions'][idx - 1])
+        obs = env.get_obs()
+        geometry.points = o3d.utility.Vector3dVector(obs['xyz'])
+        geometry.colors = o3d.utility.Vector3dVector(obs['rgb'])
+        vis.update_geometry(geometry)
+        vis.poll_events()
+        vis.update_renderer()
+        vis.capture_screen_image(f"./vis/{traj_id}/{idx}.png")
+        idx+=1
+        # import ipdb; ipdb.set_trace()
+        # image = vis.capture_depth_float_buffer()
+    vis.close()
+
+    
+
 
 def render_with_o3d(trajectory_file, json_name, env_configs, traj_id=0):
     data = GDict.from_hdf5(trajectory_file)
@@ -157,27 +220,31 @@ def render_with_o3d_random_trajectory(env_configs):
 
 
 if __name__ == "__main__":
-    render_trajectories(
-        trajectory_file = '/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/trajectory.none.pd_joint_delta_pos.h5',
-        json_name = '/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/trajectory.none.pd_joint_delta_pos.json',
-        env_name = 'PickSingleYCB-v0',
-        control_mode = 'pd_joint_delta_pos',
-        video_dir = "/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/videos",
-    )
-
-    # render_with_o3d(
+    # render_trajectories(
     #     trajectory_file = '/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/trajectory.none.pd_joint_delta_pos.h5',
     #     json_name = '/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/trajectory.none.pd_joint_delta_pos.json',
-    #     env_configs = dict(type='gym',
-    #          env_name='PickSingleYCB-v0',
-    #          control_mode='pd_joint_delta_pos',
-    #          obs_mode='pointcloud',
-    #          n_points=5000,
-    #          n_goal_points=50,
-    #          obs_frame='base',
-    #     ),
-    #     traj_id = 0,
-    # )    
+    #     env_name = 'PickSingleYCB-v0',
+    #     control_mode = 'pd_joint_delta_pos',
+    #     video_dir = "/home/xuanlin/exp-logs/maniskill_2022/demos/PickSingleYCB-v0/videos",
+    # )
+
+    ENV = "PegInsertionSide-v0"
+    # ENV = "PickCube-v0"
+    
+    for i in range(30):
+        os.makedirs(f"./vis/{i}/", exist_ok=True)
+        save_video_with_o3d(
+            trajectory_file = f'/isaac/ManiSkill2-data/rigid_body_envs/{ENV}/origin/trajectory.h5',
+            json_name = f'/isaac/ManiSkill2-data/rigid_body_envs/{ENV}/origin/trajectory.json',
+            env_configs = dict(type='gym',
+                env_name=f'{ENV}',
+                control_mode='pd_joint_delta_pos',
+                obs_mode='pointcloud',
+                n_points=1200,
+                obs_frame='base',
+            ),
+            traj_id = i,
+        )    
 
     # render_with_o3d_random_trajectory(dict(
     #         type='gym',

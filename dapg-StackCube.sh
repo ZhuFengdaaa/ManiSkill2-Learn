@@ -1,6 +1,6 @@
 METHOD="dapg"
 ENV="StackCube"
-GPU="0"
+GPU="3"
 
 YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-log"
 

@@ -89,9 +89,13 @@ class PPO(BaseAgent):
 
         actor_cfg = deepcopy(actor_cfg)
         critic_cfg = deepcopy(critic_cfg)
-
+        
         actor_optim_cfg = actor_cfg.pop("optim_cfg", None)
         critic_optim_cfg = critic_cfg.pop("optim_cfg", None)
+        
+        disc_cfg = kwargs["disc_cfg"]
+        disc_optim_cfg = disc_cfg.pop("optim_cfg", None)
+
         obs_shape = env_params["obs_shape"]
         self.is_discrete = env_params["is_discrete"]
 
@@ -142,8 +146,10 @@ class PPO(BaseAgent):
         # Build networks
         actor_cfg.update(env_params)
         critic_cfg.update(env_params)
+        disc_cfg.update(env_params)
 
         self.actor, self.critic = build_actor_critic(actor_cfg, critic_cfg, shared_backbone)
+        self.disc = build_model(disc_cfg)
 
         if self.regress_visual_state:
             visual_state_mlp_cfg.mlp_spec += [obs_shape["visual_state"]]
@@ -157,6 +163,7 @@ class PPO(BaseAgent):
 
         self.actor_optim = build_optimizer(self.actor, actor_optim_cfg)
         self.critic_optim = build_optimizer(self.critic, critic_optim_cfg)
+        self.disc_optim = build_optimizer(self.disc, disc_optim_cfg)
 
     def compute_critic_loss(self, samples):
         # For update_actor_critic and update critic
@@ -198,6 +205,20 @@ class PPO(BaseAgent):
             critic_loss = critic_mse * self.critic_coeff
             ret["ppo/critic_err"] = critic_mse.item()
             # ret['ppo/critic_loss'] = critic_loss.item()
+
+        # disc loss for ABC 
+        fake_pred = self.disc(samples["obs"], episode_dones=samples["episode_dones"], save_feature=False)
+        true_pred = self.disc(demo_samples["obs"], episode_dones=demo_samples["episode_dones"], save_feature=False)
+
+        fake_label = torch.zeros(fake_pred.shape[0], dtype=torch.long).to(fake_pred.get_device())
+        true_label = torch.ones(true_pred.shape[0], dtype=torch.long).to(true_pred.get_device())
+        fake_loss = F.cross_entropy(fake_pred, fake_label, reduce=False)
+        fake_mask = torch.sum(samples["episode_dones"],dim=1).squeeze()
+        fake_loss = torch.mean(fake_loss * (1-fake_mask))
+        true_loss = F.cross_entropy(true_pred, true_label)
+        disc_loss = fake_loss + true_loss
+
+        import ipdb; ipdb.set_trace()
 
         # Run actor forward
         alls = self.actor(
@@ -282,7 +303,7 @@ class PPO(BaseAgent):
         if backbone_aux_loss is not None:
             ret["ppo-extra/backbone_auxiliary_loss"] = backbone_aux_loss.item()
 
-        loss = actor_loss + entropy_term + critic_loss + visual_state_loss + demo_actor_loss
+        loss = actor_loss + entropy_term + critic_loss + visual_state_loss + demo_actor_loss + disc_loss
         if backbone_aux_loss is not None:
             loss = loss + backbone_aux_loss
         loss.backward()
@@ -397,6 +418,18 @@ class PPO(BaseAgent):
 
             if "v" in mode and (epoch_id == 0 or self.recompute_value):
                 with self.critic.no_sync():
+                    # preprocess ABC reward
+                    horizon = memory.sampling.horizon
+                    _obs = {}
+                    _device = next(self.disc.parameters()).device
+                    for k in memory["obs"].keys():
+                        _obs[k] = torch.tensor(memory["obs"][k]).view(-1, horizon, *memory["obs"][k].shape[1:]).to(_device)
+                    episode_dones = torch.tensor(memory["dones"]).view(-1, horizon, *memory["dones"].shape[1:]).to(_device)
+                    with torch.no_grad():
+                        fake_pred = self.disc(_obs, episode_dones=episode_dones, save_feature=False)
+                    import ipdb; ipdb.set_trace()
+                    
+
                     memory.update(
                         self.compute_gae(
                             obs=memory["obs"],

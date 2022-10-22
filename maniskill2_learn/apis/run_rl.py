@@ -418,7 +418,6 @@ def run_one_process(rank, world_size, args, cfg):
             if obs_key in replay.memory:
                 obs_shape = replay.memory.slice(0).shape[obs_key]
                 break
-
     if is_not_null(obs_shape) or is_not_null(action_shape):
         from maniskill2_learn.networks.utils import get_kwargs_from_shape, replace_placeholder_with_args
 

@@ -54,6 +54,21 @@ agent_cfg = dict(
         ),
         optim_cfg=dict(type="Adam", lr=3e-4),
     ),
+    disc_cfg=dict(
+        type="Discriminator",
+        nn_cfg=dict(
+            type="Visuomotor",
+            visual_nn_cfg=dict(type="PointNet", feat_dim="pcd_all_channel", mlp_spec=[64, 128, 512], feature_transform=[]),
+            mlp_cfg=dict(
+                type="LinearMLP",
+                norm_cfg=None,
+                mlp_spec=[512, 256, 256, 2],
+                inactivated_output=True,
+                zero_init_output=True,
+            ),
+        ),
+        optim_cfg=dict(type="Adam", lr=3e-4),
+    ),
     demo_replay_cfg=dict(
         type="ReplayMemory",
         capacity=-1,

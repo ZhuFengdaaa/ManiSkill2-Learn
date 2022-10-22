@@ -79,6 +79,7 @@ class PointNet(ExtendedModule):
                 act_cfg=act_cfg,
                 inactivated_output=False,
             )
+        self.pointnet_batch = 400
 
     def forward(self, inputs, object_feature=True, concat_state=None, **kwargs):
         xyz = inputs["xyz"] if isinstance(inputs, dict) else inputs
@@ -117,7 +118,18 @@ class PointNet(ExtendedModule):
             elif len(feature.shape) == 4:
                 b,c = feature.shape[0], feature.shape[1]
                 feature = feature.view(b*c, *feature.shape[2:])
-                feature = self.conv(feature)
+                if feature.shape[0] > self.pointnet_batch:
+                    feature_list = []
+                    for start_idx in range(0, feature.shape[0], self.pointnet_batch):
+                        end_idx = start_idx + self.pointnet_batch
+                        if end_idx > feature.shape[0]:
+                            end_idx = feature.shape[0]
+                        feature_slice = feature[start_idx:end_idx]
+                        feature_slice = self.conv(feature_slice)
+                        feature_list.append(feature_slice)
+                    feature = torch.cat(feature_list, dim=0)
+                else:   
+                    feature = self.conv(feature)
                 feature = feature.view(b, c, *feature.shape[1:])
             else:
                 raise NotImplementedError

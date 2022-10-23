@@ -64,7 +64,7 @@ class Rollout:
             last_get_done = time.time()
 
             while total < num:
-                print(f"{total}/{num}")
+                # print(f"{total}/{num}")
                 st = time.time()
                 actions = get_actions()
                 agent_time += time.time() - st

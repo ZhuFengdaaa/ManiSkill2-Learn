@@ -434,6 +434,7 @@ class PPO(BaseAgent):
                     max_length = memory["obs"]["rgb"].shape[0]
                     step_size = batch_size*horizon
                     reward_offset = []
+                    total_reward_offset = 0
                     acc = 0
                     cnt = 0
                     with torch.no_grad():
@@ -454,18 +455,20 @@ class PPO(BaseAgent):
                             fake_mask = torch.sum(episode_dones, dim=1).squeeze()
                             for i in range(len(fake_pred)):
                                 if fake_mask[i].item() > 0:
-                                    reward_offset += [0] * horizon
+                                    # reward_offset += [0] * horizon
+                                    reward_offset += [1.] * horizon
                                 else:
-                                    reward_offset += [fake_loss[i].item()] * horizon
+                                    # reward_offset += [fake_loss[i].item()] * horizon
+                                    reward_offset += [1+fake_loss[i].item()] * horizon
+                                    total_reward_offset += 1+fake_loss[i].item()
                                     acc += (fake_pred[i,0]>fake_pred[i,1]).item()
                                     cnt += 1
                     assert len(reward_offset) == max_length
                     reward_offset = np.expand_dims(np.array(reward_offset), axis=1)
-                    ret["disc/reward_offset"].append(np.sum(reward_offset).item()/np.sum(reward_offset>0).item())
+                    ret["disc/reward_offset"].append(total_reward_offset/np.sum(reward_offset>1).item())
                     ret["disc/reward_acc"].append(acc/cnt)
-                    # weight = np.mean(memory["rewards"])
-                    weight = 1
-                    memory["processed_rewards"] = memory["rewards"] + reward_offset * self.reward_offset_weight
+                    # memory["processed_rewards"] = memory["rewards"] + reward_offset * self.reward_offset_weight
+                    memory["processed_rewards"] = memory["rewards"] * np.power(reward_offset, self.reward_offset_weight)
 
                     memory.update(
                         self.compute_gae(

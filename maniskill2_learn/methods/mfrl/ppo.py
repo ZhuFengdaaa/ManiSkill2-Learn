@@ -219,9 +219,8 @@ class PPO(BaseAgent):
         fake_loss = torch.mean(fake_loss * (1-fake_mask))
         true_loss = F.cross_entropy(true_pred, true_label)
         disc_loss = fake_loss + true_loss
-        ret["disc/fake_loss"] = fake_loss.item()
-        ret["disc/true_loss"] = true_loss.item()
-        ret["disc/disc_loss"] = disc_loss.item()
+        acc = (torch.sum(fake_pred[:,0]>fake_pred[:,1]).item() + \
+            torch.sum(true_pred[:,0]<true_pred[:,1]).item())/(fake_pred.shape[0] + true_pred.shape[0])
 
         # Run actor forward
         alls = self.actor(
@@ -349,7 +348,13 @@ class PPO(BaseAgent):
         self.actor_optim.step()
         if with_critic:
             self.critic_optim.step()
-        self.disc_optim.step()
+
+        if acc < 0.9:
+            ret["disc/fake_loss"] = fake_loss.item()
+            ret["disc/true_loss"] = true_loss.item()
+            ret["disc/disc_loss"] = disc_loss.item()
+            ret["disc/accuracy"] = acc
+            self.disc_optim.step()
 
         return False, ret
 

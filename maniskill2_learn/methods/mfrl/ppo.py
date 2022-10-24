@@ -219,6 +219,8 @@ class PPO(BaseAgent):
         fake_loss = torch.mean(fake_loss * (1-fake_mask))
         true_loss = F.cross_entropy(true_pred, true_label)
         disc_loss = fake_loss + true_loss
+        ret["disc/fake_loss"] = fake_loss.item()
+        ret["disc/true_loss"] = true_loss.item()
         ret["disc/disc_loss"] = disc_loss.item()
 
         # Run actor forward
@@ -421,13 +423,14 @@ class PPO(BaseAgent):
             if "v" in mode and (epoch_id == 0 or self.recompute_value):
                 with self.critic.no_sync():
                     # preprocess ABC reward
-                    
                     horizon = memory.sampling.horizon
                     _device = next(self.disc.parameters()).device
                     batch_size = process_batch_size
                     max_length = memory["obs"]["rgb"].shape[0]
                     step_size = batch_size*horizon
                     reward_offset = []
+                    acc = 0
+                    cnt = 0
                     with torch.no_grad():
                         for start_idx in range(0, max_length, step_size):
                             end_idx = start_idx + step_size
@@ -437,31 +440,33 @@ class PPO(BaseAgent):
                             for k in memory["obs"].keys():
                                 _tensor = torch.tensor(memory["obs"][k][start_idx:end_idx], requires_grad=False)
                                 _obs[k] = _tensor.view(-1, horizon, *_tensor.shape[1:]).to(_device)
-                            _tensor = torch.tensor(memory["dones"][start_idx:end_idx], requires_grad=False)
+                            _tensor = torch.tensor(memory["episode_dones"][start_idx:end_idx], requires_grad=False)
                             episode_dones = _tensor.view(-1, horizon, *_tensor.shape[1:]).to(_device)
                             
                             fake_pred = self.disc(_obs, episode_dones=episode_dones, save_feature=False)
                             fake_label = torch.zeros(fake_pred.shape[0], dtype=torch.long).to(fake_pred.get_device())
                             fake_loss = F.cross_entropy(fake_pred, fake_label, reduce=False)
                             fake_mask = torch.sum(episode_dones, dim=1).squeeze()
-                            
                             for i in range(len(fake_pred)):
                                 if fake_mask[i].item() > 0:
                                     reward_offset += [0] * horizon
                                 else:
                                     reward_offset += [fake_loss[i].item()] * horizon
+                                    acc += (fake_pred[i,0]>fake_pred[i,1]).item()
+                                    cnt += 1
                     assert len(reward_offset) == max_length
                     reward_offset = np.expand_dims(np.array(reward_offset), axis=1)
-                    ret["disc/reward_offset"].append(np.mean(reward_offset).item())
+                    ret["disc/reward_offset"].append(np.sum(reward_offset).item()/np.sum(reward_offset>0).item())
+                    ret["disc/reward_acc"].append(acc/cnt)
                     # weight = np.mean(memory["rewards"])
                     weight = 1
-                    memory["rewards"] += reward_offset * self.reward_offset_weight
+                    memory["processed_rewards"] = memory["rewards"] + reward_offset * self.reward_offset_weight
 
                     memory.update(
                         self.compute_gae(
                             obs=memory["obs"],
                             next_obs=memory["next_obs"],
-                            rewards=memory["rewards"],
+                            rewards=memory["processed_rewards"],
                             dones=memory["dones"],
                             episode_dones=memory["episode_dones"],
                             update_rms=True,

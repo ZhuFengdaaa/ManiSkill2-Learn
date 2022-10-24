@@ -2,12 +2,12 @@ METHOD="abc"
 ENV="PegInsertionSide"
 GPU="7"
 STEP="5"
+WEIGHT="10"
 
-YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-step$STEP.log"
+YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-step$STEP-w$WEIGHT.log"
 
 python3.8 maniskill2_learn/apis/run_rl.py configs/mfrl/$METHOD/maniskill2_pn.py \
 --work-dir $YOUR_LOGGING_DIRECTORY --gpu-ids $GPU --sim-gpu-ids $GPU \
---resume-from ./logs/dapg-PegInsertionSide-log/models/model_10000000.ckpt \
 --cfg-options "env_cfg.env_name=$ENV-v0" "env_cfg.obs_mode=pointcloud" \
 "env_cfg.n_points=1200" "env_cfg.obs_frame=ee" "env_cfg.control_mode=pd_ee_delta_pose" \
 "env_cfg.reward_mode=dense" "rollout_cfg.num_procs=16" \
@@ -23,4 +23,4 @@ python3.8 maniskill2_learn/apis/run_rl.py configs/mfrl/$METHOD/maniskill2_pn.py 
 "agent_cfg.demo_replay_cfg.sampling_cfg.type=TStepTransition" \
 "agent_cfg.demo_replay_cfg.sampling_cfg.with_replacement=False" \
 "agent_cfg.demo_replay_cfg.sampling_cfg.horizon=$STEP" \
-"agent_cfg.disc_cfg.reward_offset_weight=1"
+"agent_cfg.disc_cfg.reward_offset_weight=$WEIGHT"

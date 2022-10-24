@@ -197,6 +197,7 @@ class PPO(BaseAgent):
         is_valid = samples["is_valid"]
         self.actor_optim.zero_grad()
         self.critic_optim.zero_grad()
+        self.disc_optim.zero_grad()
         ret = {}
         critic_loss, actor_loss, demo_actor_loss, visual_state_loss, entropy_term = [0.0] * 5
         feature, visual_feature, critic_loss, policy_std = [None] * 4
@@ -346,6 +347,7 @@ class PPO(BaseAgent):
         self.actor_optim.step()
         if with_critic:
             self.critic_optim.step()
+        self.disc_optim.step()
 
         return False, ret
 

@@ -1,6 +1,6 @@
 METHOD="abc"
 ENV="PegInsertionSide"
-GPU="2"
+GPU="0"
 STEP="5"
 
 YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-step$STEP-cont.log"
@@ -23,4 +23,4 @@ python3.8 maniskill2_learn/apis/run_rl.py configs/mfrl/$METHOD/maniskill2_pn.py 
 "agent_cfg.demo_replay_cfg.sampling_cfg.type=TStepTransition" \
 "agent_cfg.demo_replay_cfg.sampling_cfg.with_replacement=False" \
 "agent_cfg.demo_replay_cfg.sampling_cfg.horizon=$STEP" \
-"agent_cfg.disc_cfg.reward_offset_weight=0" \
+"agent_cfg.disc_cfg.reward_offset_weight=0"

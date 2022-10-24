@@ -5,6 +5,7 @@ from ..builder import POLICYNETWORKS, VALUENETWORKS, build_backbone, build_reg_h
 
 from ..utils import replace_placeholder_with_args, get_kwargs_from_shape, combine_obs_with_action
 import torch, torch.nn as nn
+from torch.nn import functional as F
 
 
 class ActorCriticBase(ExtendedModule):
@@ -126,3 +127,89 @@ class DiscreteCritic(ContinuousCritic):
             ret = torch.gather(ret, -1, actions)[..., 0]
 
         return ret
+
+@VALUENETWORKS.register_module()
+class Discriminator(ExtendedModule):
+    # Or Value for discrete action space
+    def __init__(self, nn_cfg=None, head_cfg=None, mlp_cfg=None, backbone=None, obs_shape=None, 
+        action_shape=None, num_heads=1, average_grad=True, **kwargs):
+        super(Discriminator, self).__init__()
+        replaceable_kwargs = get_kwargs_from_shape(obs_shape, action_shape)
+        nn_cfg, mlp_cfg = replace_placeholder_with_args([nn_cfg, mlp_cfg], **replaceable_kwargs)
+
+        self.values = nn.ModuleList()
+        self.num_heads = num_heads
+        self.shared_feature = backbone is not None
+        self.average_grad = average_grad
+        if self.shared_feature and num_heads > 1:
+            assert mlp_cfg is not None, "We should use different MLP in ContinuousCritic for shared multi-head critic!"
+
+        for i in range(num_heads):
+            self.values.append(ActorCriticBase(nn_cfg=nn_cfg, head_cfg=head_cfg, mlp_cfg=mlp_cfg, backbone=backbone))
+        
+        # design LSTM
+        self.lstm = nn.LSTM(
+            input_size=512,
+            hidden_size=512,
+            num_layers=1,
+            batch_first=True,
+        )
+
+        # self._h, self._c = self.init_hidden()
+
+    def init_hidden(self, batch_size, channel, device):
+        # the weights are of the form (nb_layers, batch_size, nb_lstm_units)
+        hidden_a = torch.zeros(1, batch_size, channel).to(device)
+        hidden_b = torch.zeros(1, batch_size, channel).to(device)
+
+        # hidden_a = hidden_a.cuda()
+        # hidden_b = hidden_b.cuda()
+
+        # hidden_a = Variable(hidden_a)
+        # hidden_b = Variable(hidden_b)
+
+        return (hidden_a, hidden_b)
+
+    def forward(self, obs, actions=None, actions_prob=None, detach_value=False, **kwargs):
+        assert len(self.values) ==1 
+        feature = self.values[0].backbone.visual_nn(obs, **kwargs)
+
+        X = feature
+        batch_size, seq_len, channel = X.size()
+        device = X.get_device()
+        self.hidden = self.init_hidden(batch_size, channel, device)
+        
+        X_lengths = [seq_len] * batch_size
+        X = torch.nn.utils.rnn.pack_padded_sequence(X, X_lengths, batch_first=True)
+        X, self.hidden = self.lstm(X, self.hidden)
+        X, _ = torch.nn.utils.rnn.pad_packed_sequence(X, batch_first=True)
+        X = X.contiguous()
+        X = X[:,-1,:]
+        X = self.values[0].backbone.final_mlp(X)
+        return X
+        
+        
+        # assert not (actions is not None and actions_prob is not None), "We only need one of actions and actions_prob"
+        # kwargs = dict(kwargs)
+        # if self.shared_feature:
+        #     feature = self.values[0].backbone(obs=obs, **kwargs)
+        #     if self.num_heads > 1:
+        #         feature = avg_grad(feature, self.num_heads)
+        #     ret = [value(obs=obs, feature=feature, **kwargs) for i, value in enumerate(self.values)]
+        # else:
+        #     ret = [value(obs=obs, **kwargs) for i, value in enumerate(self.values)]
+        # ret = GDict.stack(ret, -2).contiguous(False)  # [B, num_head, dim_value]
+
+        # if detach_value:
+        #     ret = ret.detach()
+
+        # if actions_prob is not None:
+        #     # Return V instead of Q when getting actions_prob
+        #     actions_prob = actions_prob[..., None, :]
+        #     ret = (ret * actions_prob).sum(-1)
+        # elif actions is not None:
+        #     # print('Q', ret.shape)
+        #     actions = torch.repeat_interleave(actions[..., None], ret.shape[-2], dim=-2)
+        #     ret = torch.gather(ret, -1, actions)[..., 0]
+
+        # return ret

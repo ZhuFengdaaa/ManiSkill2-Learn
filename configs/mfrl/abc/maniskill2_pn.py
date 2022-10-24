@@ -68,6 +68,7 @@ agent_cfg = dict(
             ),
         ),
         optim_cfg=dict(type="Adam", lr=3e-4),
+        reward_offset_weight=1.
     ),
     demo_replay_cfg=dict(
         type="ReplayMemory",

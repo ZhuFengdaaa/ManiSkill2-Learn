@@ -89,9 +89,14 @@ class PPO(BaseAgent):
 
         actor_cfg = deepcopy(actor_cfg)
         critic_cfg = deepcopy(critic_cfg)
-
+        
         actor_optim_cfg = actor_cfg.pop("optim_cfg", None)
         critic_optim_cfg = critic_cfg.pop("optim_cfg", None)
+        
+        disc_cfg = kwargs["disc_cfg"]
+        self.reward_offset_weight = disc_cfg.reward_offset_weight
+        disc_optim_cfg = disc_cfg.pop("optim_cfg", None)
+
         obs_shape = env_params["obs_shape"]
         self.is_discrete = env_params["is_discrete"]
 
@@ -142,8 +147,10 @@ class PPO(BaseAgent):
         # Build networks
         actor_cfg.update(env_params)
         critic_cfg.update(env_params)
+        disc_cfg.update(env_params)
 
         self.actor, self.critic = build_actor_critic(actor_cfg, critic_cfg, shared_backbone)
+        self.disc = build_model(disc_cfg)
 
         if self.regress_visual_state:
             visual_state_mlp_cfg.mlp_spec += [obs_shape["visual_state"]]
@@ -157,6 +164,7 @@ class PPO(BaseAgent):
 
         self.actor_optim = build_optimizer(self.actor, actor_optim_cfg)
         self.critic_optim = build_optimizer(self.critic, critic_optim_cfg)
+        self.disc_optim = build_optimizer(self.disc, disc_optim_cfg)
 
     def compute_critic_loss(self, samples):
         # For update_actor_critic and update critic
@@ -189,6 +197,7 @@ class PPO(BaseAgent):
         is_valid = samples["is_valid"]
         self.actor_optim.zero_grad()
         self.critic_optim.zero_grad()
+        self.disc_optim.zero_grad()
         ret = {}
         critic_loss, actor_loss, demo_actor_loss, visual_state_loss, entropy_term = [0.0] * 5
         feature, visual_feature, critic_loss, policy_std = [None] * 4
@@ -198,6 +207,19 @@ class PPO(BaseAgent):
             critic_loss = critic_mse * self.critic_coeff
             ret["ppo/critic_err"] = critic_mse.item()
             # ret['ppo/critic_loss'] = critic_loss.item()
+
+        # disc loss for ABC 
+        fake_pred = self.disc(samples["obs"], episode_dones=samples["episode_dones"], save_feature=False)
+        true_pred = self.disc(demo_samples["obs"], episode_dones=demo_samples["episode_dones"], save_feature=False)
+
+        fake_label = torch.zeros(fake_pred.shape[0], dtype=torch.long).to(fake_pred.get_device())
+        true_label = torch.ones(true_pred.shape[0], dtype=torch.long).to(true_pred.get_device())
+        fake_loss = F.cross_entropy(fake_pred, fake_label, reduce=False)
+        fake_mask = torch.sum(samples["episode_dones"],dim=1).squeeze()
+        fake_loss = torch.mean(fake_loss * (1-fake_mask))
+        true_loss = F.cross_entropy(true_pred, true_label)
+        disc_loss = fake_loss + true_loss
+        ret["disc/disc_loss"] = disc_loss.item()
 
         # Run actor forward
         alls = self.actor(
@@ -282,7 +304,7 @@ class PPO(BaseAgent):
         if backbone_aux_loss is not None:
             ret["ppo-extra/backbone_auxiliary_loss"] = backbone_aux_loss.item()
 
-        loss = actor_loss + entropy_term + critic_loss + visual_state_loss + demo_actor_loss
+        loss = actor_loss + entropy_term + critic_loss + visual_state_loss + demo_actor_loss + disc_loss
         if backbone_aux_loss is not None:
             loss = loss + backbone_aux_loss
         loss.backward()
@@ -325,6 +347,7 @@ class PPO(BaseAgent):
         self.actor_optim.step()
         if with_critic:
             self.critic_optim.step()
+        self.disc_optim.step()
 
         return False, ret
 
@@ -397,6 +420,43 @@ class PPO(BaseAgent):
 
             if "v" in mode and (epoch_id == 0 or self.recompute_value):
                 with self.critic.no_sync():
+                    # preprocess ABC reward
+                    
+                    horizon = memory.sampling.horizon
+                    _device = next(self.disc.parameters()).device
+                    batch_size = process_batch_size
+                    max_length = memory["obs"]["rgb"].shape[0]
+                    step_size = batch_size*horizon
+                    reward_offset = []
+                    with torch.no_grad():
+                        for start_idx in range(0, max_length, step_size):
+                            end_idx = start_idx + step_size
+                            if end_idx > max_length:
+                                end_idx = max_length
+                            _obs = {}
+                            for k in memory["obs"].keys():
+                                _tensor = torch.tensor(memory["obs"][k][start_idx:end_idx], requires_grad=False)
+                                _obs[k] = _tensor.view(-1, horizon, *_tensor.shape[1:]).to(_device)
+                            _tensor = torch.tensor(memory["dones"][start_idx:end_idx], requires_grad=False)
+                            episode_dones = _tensor.view(-1, horizon, *_tensor.shape[1:]).to(_device)
+                            
+                            fake_pred = self.disc(_obs, episode_dones=episode_dones, save_feature=False)
+                            fake_label = torch.zeros(fake_pred.shape[0], dtype=torch.long).to(fake_pred.get_device())
+                            fake_loss = F.cross_entropy(fake_pred, fake_label, reduce=False)
+                            fake_mask = torch.sum(episode_dones, dim=1).squeeze()
+                            
+                            for i in range(len(fake_pred)):
+                                if fake_mask[i].item() > 0:
+                                    reward_offset += [0] * horizon
+                                else:
+                                    reward_offset += [fake_loss[i].item()] * horizon
+                    assert len(reward_offset) == max_length
+                    reward_offset = np.expand_dims(np.array(reward_offset), axis=1)
+                    ret["disc/reward_offset"].append(np.mean(reward_offset).item())
+                    # weight = np.mean(memory["rewards"])
+                    weight = 1
+                    memory["rewards"] += reward_offset * self.reward_offset_weight
+
                     memory.update(
                         self.compute_gae(
                             obs=memory["obs"],

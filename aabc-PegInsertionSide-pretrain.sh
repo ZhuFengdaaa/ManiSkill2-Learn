@@ -13,4 +13,4 @@ python3.8 maniskill2_learn/apis/run_rl.py configs/mfrl/$METHOD/maniskill2_pn.py 
 "expert_replay_cfg.buffer_filenames=/isaac/ManiSkill2-data/rigid_body_envs/$ENV-v0/trajectory.h5" \
 "eval_cfg.num=100" "eval_cfg.save_traj=False" "eval_cfg.save_video=True" \
 "eval_cfg.num_procs=5" \
-"agent_cfg.use_gail=True"
+"agent_cfg.use_gail=False"

@@ -183,7 +183,7 @@ class BaseAgent(ExtendedModule):
         return run_with_mini_batch(self.critic, obs=obs, actions=actions, **kwargs, device=self.device)
 
     @no_grad
-    def compute_gae(self, obs, next_obs, rewards, dones, episode_dones, ignore_dones=True, update_rms=True, batch_size=None):
+    def compute_gae(self, obs, next_obs, rewards, dones, episode_dones, ignore_dones=True, update_rms=True, batch_size=None, actions=None):
         """
         High-Dimensional Continuous Control Using Generalized Advantage Estimation
             https://arxiv.org/abs/1506.02438
@@ -200,10 +200,11 @@ class BaseAgent(ExtendedModule):
                 ret_device=self.device,
                 wrapper=False,
                 episode_dones=episode_dones,
+                actions=actions
             )
 
             next_values = self.get_values(
-                obs=next_obs, batch_size=batch_size, ret_device=self.device, wrapper=False,
+                obs=next_obs, batch_size=batch_size, ret_device=self.device, wrapper=False,actions=actions
             )
 
         if self.rew_rms is not None:

@@ -206,12 +206,6 @@ def train_rl(
         replay.push_batch(trajectories)
         logger.info(f'Warm up samples stats: {episode_statistics.get_stats_str()}!')
 
-        # print(GDict(trajectories).shape)
-        # print(episode_statistics.get_stats_str())
-        # print(trajectories["rewards"].reshape(-1, 200).sum(-1))
-        # print(trajectories["rewards"][:200], np.std(trajectories["obs"], axis=0))
-        # exit(0)
-
         rollout.reset()
         agent.reset()
         episode_statistics.reset_current()

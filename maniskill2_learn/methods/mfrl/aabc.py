@@ -612,7 +612,9 @@ class AABC(BaseAgent):
             sampled_batch = self.process_obs(sampled_batch)
 
             with torch.no_grad():
-                discriminator_rewards = -torch.log(torch.sigmoid(self.discriminator(sampled_batch["obs"], sampled_batch["actions"])))
+                sample_pred = torch.sigmoid(self.discriminator(sampled_batch["obs"], sampled_batch["actions"]))
+                sample_acc = torch.sum(sample_pred > 0.5).item() / sample_pred.shape[0]
+                discriminator_rewards = -torch.log(sample_pred)
                 assert sampled_batch["rewards"].size() == discriminator_rewards.size()
                 old_rewards = sampled_batch["rewards"]
                 sampled_batch["rewards"] = self.env_reward_proportion * old_rewards + (1 - self.env_reward_proportion) * discriminator_rewards
@@ -682,6 +684,7 @@ class AABC(BaseAgent):
                 "gail/target_entropy": self.target_entropy,
                 "gail/critic_grad": critic_grad,
                 "gail/actor_grad": actor_grad,
+                "gail/sample_acc": sample_acc,
             })
 
         return ret

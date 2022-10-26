@@ -69,6 +69,7 @@ class AABC(BaseAgent):
         
         shared_backbone=False,
         detach_actor_feature=True,
+        gail_detach_actor_feature=False,
         debug_grad=False,
         
         demo_replay_cfg=None,
@@ -93,7 +94,6 @@ class AABC(BaseAgent):
         alpha_optim_cfg=None,
         target_entropy=None,
         use_demo_for_policy_update=False,
-        # detach_actor_feature=False,
         **kwargs
     ):
         super(AABC, self).__init__()
@@ -179,6 +179,7 @@ class AABC(BaseAgent):
 
         self.shared_backbone = shared_backbone
         self.detach_actor_feature = detach_actor_feature
+        self.gail_detach_actor_feature = gail_detach_actor_feature
 
         self.actor_optim = build_optimizer(self.actor, actor_optim_cfg)
         self.critic_optim = build_optimizer(self.critic, critic_optim_cfg)
@@ -629,7 +630,7 @@ class AABC(BaseAgent):
             self.critic_optim.zero_grad()        
 
         pi, log_pi = self.actor(sampled_batch["obs"], mode="all", 
-            save_feature=self.shared_backbone, detach_visual=self.detach_actor_feature)[:2]
+            save_feature=self.shared_backbone, detach_visual=self.gail_detach_actor_feature)[:2]
         entropy_term = -log_pi.mean()
 
         visual_feature = self.actor.backbone.pop_attr("saved_visual_feature")

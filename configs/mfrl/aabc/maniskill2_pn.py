@@ -33,7 +33,7 @@ agent_cfg = dict(
     alpha=0.2,
     target_update_interval=1,
     automatic_alpha_tuning=True,
-    # detach_actor_feature=True,
+    gail_detach_actor_feature=True,
     alpha_optim_cfg=dict(type="Adam", lr=3e-4),
     actor_cfg=dict(
         type="ContinuousActor",

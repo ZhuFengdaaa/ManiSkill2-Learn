@@ -301,9 +301,11 @@ def train_rl(
                 if hasattr(agent, "update_discriminator"):
                     assert recent_traj_replay is not None
                     start_time = time.time()
-                    disc_update_applied = agent.update_discriminator(expert_replay, recent_traj_replay, n_ep)
+                    disc_update_applied, training_infos = agent.update_discriminator(expert_replay, recent_traj_replay, n_ep)
                     if disc_update_applied:
                         recent_traj_replay.reset()
+                        for key in training_infos:
+                            tb_print[key].append(training_infos[key])
                     update_time += time.time() - start_time
             tb_print = {key: np.mean(tb_print[key]) for key in tb_print}
 

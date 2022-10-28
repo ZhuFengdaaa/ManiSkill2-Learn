@@ -1,5 +1,5 @@
 agent_cfg = dict(
-    type="AABC",
+    type="ETB",
     gamma=0.95,
     lmbda=0.95,
     critic_coeff=0.5,
@@ -23,7 +23,7 @@ agent_cfg = dict(
     dapg_damping=0.995,
 
     # gail
-    discriminator_batch_size=512,
+    discriminator_batch_size=2048,
     discriminator_update_freq=0.125,
     discriminator_update_n=5,
     episode_based_discriminator_update=True,
@@ -96,12 +96,12 @@ agent_cfg = dict(
 
 train_cfg = dict(
     on_policy=True,
-    total_steps=int(25e6),
+    total_steps=int(25e8),
     warm_steps=0,
-    n_steps=int(2e2), ##############
+    n_steps=int(2e4), ##############
     n_updates=1,
     n_eval=int(5e6),
-    n_checkpoint=int(1e6),
+    n_checkpoint=int(1e7),
     ep_stats_cfg=dict(
         info_keys_mode=dict(
             success=[True, "max", "mean"],

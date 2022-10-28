@@ -49,6 +49,7 @@ class Visuomotor(ExtendedModule):
 
         self.saved_feature = None
         self.saved_visual_feature = None
+        self.dropout = nn.Dropout()
 
     def forward(
         self,
@@ -108,8 +109,8 @@ class Visuomotor(ExtendedModule):
                 self.saved_feature = feat.clone()
         else:
             feat = feature
-
         if self.final_mlp is not None:
+            feat = self.dropout(feat)
             feat = self.final_mlp(feat)
 
         return feat

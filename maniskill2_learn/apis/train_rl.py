@@ -274,46 +274,51 @@ def train_rl(
             while num_episodes < print_steps and not (on_policy and num_episodes > 0):
                 # Collect samples
                 start_time = time.time()
-                agent.eval()  # For things like batch norm
-                trajectories = rollout.forward_with_policy(agent, n_steps, on_policy, replay)
+                # agent.eval()  # For things like batch norm
+                # trajectories = rollout.forward_with_policy(agent, n_steps, on_policy, replay)
 
-                if not print_replay_shape:
-                    print_replay_shape = True
-                    logger.info(f"Replay buffer shape: {replay.memory.shape}.")
+                # if not print_replay_shape:
+                #     print_replay_shape = True
+                #     logger.info(f"Replay buffer shape: {replay.memory.shape}.")
                 agent.train()
 
-                if trajectories is not None:
-                    if recent_traj_replay is not None:
-                        recent_traj_replay.push_batch(trajectories)
+                # if trajectories is not None:
+                #     if recent_traj_replay is not None:
+                #         recent_traj_replay.push_batch(trajectories)
 
-                    episode_statistics.push(trajectories)
-                    n_ep = np.sum(trajectories["episode_dones"].astype(np.int32))
-                    num_episodes += n_ep
-                    tmp_steps += len(trajectories["rewards"])
-                collect_sample_time += time.time() - start_time
+                #     episode_statistics.push(trajectories)
+                #     n_ep = np.sum(trajectories["episode_dones"].astype(np.int32))
+                
+                #     tmp_steps += len(trajectories["rewards"])
+                # collect_sample_time += time.time() - start_time
 
-                # Train agent
-                for i in range(n_updates):
-                    total_updates += 1
-                    start_time = time.time()
-                    extra_args = {} if expert_replay is None else dict(expert_replay=expert_replay)
-                    training_infos = agent.update_parameters(replay, updates=total_updates, **extra_args)
-                    # torch.cuda.empty_cache()
+                # # Train agent
+                # for i in range(n_updates):
+                #     total_updates += 1
+                #     start_time = time.time()
+                #     extra_args = {} if expert_replay is None else dict(expert_replay=expert_replay)
+                #     training_infos = agent.update_parameters(replay, updates=total_updates, **extra_args)
+                #     # torch.cuda.empty_cache()
 
-                    for key in training_infos:
-                        tb_print[key].append(training_infos[key])
-                    update_time += time.time() - start_time
+                #     for key in training_infos:
+                #         tb_print[key].append(training_infos[key])
+                #     update_time += time.time() - start_time
 
                 if hasattr(agent, "update_discriminator"):
-                    assert recent_traj_replay is not None
+                    # assert recent_traj_replay is not None
                     start_time = time.time()
-                    disc_update_applied = agent.update_discriminator(expert_replay, recent_traj_replay, n_ep)
-                    if disc_update_applied:
-                        recent_traj_replay.reset()
+                    disc_update_applied, training_infos, n_ep, n_steps = agent.update_discriminator(expert_replay)
+                    # if disc_update_applied:
+                        # recent_traj_replay.reset()
                     update_time += time.time() - start_time
+                    num_episodes += n_ep
+                    tmp_steps += n_steps
+                for key in training_infos:
+                    tb_print[key].append(training_infos[key])
+
             tb_print = {key: np.mean(tb_print[key]) for key in tb_print}
 
-            ep_stats = episode_statistics.get_stats()
+            # ep_stats = episode_statistics.get_stats()
 
             episode_time, collect_sample_time = GDict([time.time() - time_begin_episode, collect_sample_time]).allreduce(op="MAX", wrapper=False)
             tmp_steps, num_episodes = GDict([tmp_steps, int(num_episodes)]).allreduce(op="SUM", wrapper=False)
@@ -321,10 +326,10 @@ def train_rl(
             steps += tmp_steps
             total_episodes += num_episodes
 
-            print_log["samples_stats"] = episode_statistics.get_stats_str()
+            # print_log["samples_stats"] = episode_statistics.get_stats_str()
             tb_print.update(dict(episode_time=episode_time, collect_sample_time=collect_sample_time))
 
-            tb_log.update(ep_stats)
+            # tb_log.update(ep_stats)
             tb_log.update(dict(num_episodes=num_episodes, total_episodes=total_episodes))
         else:
             # For offline RL
@@ -370,24 +375,24 @@ def train_rl(
 
         logger.info(f"{steps}/{total_steps}({percentage}) Passed time:{passed_time} ETA:{ETA} {dict_to_str(print_log)}")
 
-        if check_eval.check(steps) and is_not_null(evaluator):
-            standardized_eval_step = check_eval.standard(steps)
-            logger.info(f"Begin to evaluate at step: {steps}. " f"The evaluation info will be saved at eval_{standardized_eval_step}")
-            eval_dir = osp.join(work_dir, f"eval_{standardized_eval_step}")
+        # if check_eval.check(steps) and is_not_null(evaluator):
+        #     standardized_eval_step = check_eval.standard(steps)
+        #     logger.info(f"Begin to evaluate at step: {steps}. " f"The evaluation info will be saved at eval_{standardized_eval_step}")
+        #     eval_dir = osp.join(work_dir, f"eval_{standardized_eval_step}")
 
-            agent.eval()  # For things like batch norm
-            agent.set_mode(mode="test")  # For things like obs normalization
+        #     agent.eval()  # For things like batch norm
+        #     agent.set_mode(mode="test")  # For things like obs normalization
 
-            lens, rewards, finishes = evaluator.run(agent, **eval_cfg, work_dir=eval_dir)
-            # agent.recover_data_parallel()
+        #     lens, rewards, finishes = evaluator.run(agent, **eval_cfg, work_dir=eval_dir)
+        #     # agent.recover_data_parallel()
 
-            torch.cuda.empty_cache()
-            save_eval_statistics(eval_dir, lens, rewards, finishes)
-            agent.train()
-            agent.set_mode(mode="train")
+        #     torch.cuda.empty_cache()
+        #     save_eval_statistics(eval_dir, lens, rewards, finishes)
+        #     agent.train()
+        #     agent.set_mode(mode="train")
 
-            eval_dict = dict(mean_length=np.mean(lens), std_length=np.std(lens), mean_reward=np.mean(rewards), std_reward=np.std(rewards))
-            tf_logger.log(eval_dict, n_iter=steps, tag_name="test")
+        #     eval_dict = dict(mean_length=np.mean(lens), std_length=np.std(lens), mean_reward=np.mean(rewards), std_reward=np.std(rewards))
+        #     tf_logger.log(eval_dict, n_iter=steps, tag_name="test")
 
         if check_checkpoint.check(steps):
             standardized_ckpt_step = check_checkpoint.standard(steps)

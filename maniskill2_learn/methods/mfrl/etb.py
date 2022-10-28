@@ -42,47 +42,63 @@ class ETB(BaseAgent):
         env_params,
         batch_size=256,
         discriminator_batch_size=512,
-        discriminator_update_freq=0.125,
         discriminator_update_n=5,
         episode_based_discriminator_update=True,
         **kwargs
     ):
         super(ETB, self).__init__()
-        pass
+        self.discriminator_update_n = discriminator_update_n
+        self.discriminator_batch_size = discriminator_batch_size
+        self.env_params = env_params
+        self.actor = None
+        self.critic = None
+        discriminator_optim_cfg = discriminator_cfg.pop("optim_cfg")
+        self.discriminator = build_model(discriminator_cfg)
+        self.discriminator_optim = build_optimizer(self.discriminator, discriminator_optim_cfg)
+        self.discriminator_criterion = torch.nn.BCEWithLogitsLoss()
+        # self.discriminator_criterion = torch.nn.MSELoss()
+        
 
     def update_parameters(self, memory, updates, expert_replay):
         pass
 
-    def update_discriminator_helper(self, expert_replay, recent_traj_replay):
+    def update_discriminator_helper(self, expert_replay):
+        self.discriminator_optim.zero_grad()
         expert_sampled_batch = expert_replay.sample(self.discriminator_batch_size // 2).to_torch(
             dtype="float32", device=self.device, non_blocking=True
         )
-        recent_traj_sampled_batch = recent_traj_replay.sample(self.discriminator_batch_size // 2).to_torch(
-            dtype="float32", device=self.device, non_blocking=True
-        )
+       
         expert_sampled_batch = self.process_obs(expert_sampled_batch)
-        recent_traj_sampled_batch = self.process_obs(recent_traj_sampled_batch)
 
-        expert_out = torch.sigmoid(self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"]))
-        recent_traj_out = torch.sigmoid(self.discriminator(recent_traj_sampled_batch["obs"], recent_traj_sampled_batch["actions"]))
+        expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
+        progress_loss = self.discriminator_criterion(expert_out, expert_sampled_batch["progress"])
+        progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]
+        # expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
+        # progress_loss = self.discriminator_criterion(torch.sigmoid(expert_out), expert_sampled_batch["progress"])
+        # progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]
 
-        self.discriminator_optim.zero_grad()
-        discriminator_loss = self.discriminator_criterion(
-            expert_out, torch.zeros((expert_out.shape[0], 1), device=self.device)
-        ) + self.discriminator_criterion(recent_traj_out, torch.ones((recent_traj_out.shape[0], 1), device=self.device))
-        discriminator_loss = discriminator_loss.mean()
-        discriminator_loss.backward()
+        
+        # discriminator_loss = self.discriminator_criterion(
+        #     expert_out, torch.zeros((expert_out.shape[0], 1), device=self.device)
+        # ) + self.discriminator_criterion(recent_traj_out, torch.ones((recent_traj_out.shape[0], 1), device=self.device))
+        # disc_acc = (torch.sum(expert_out < 0.5) + torch.sum(recent_traj_out > 0.5))/(expert_out.shape[0]+recent_traj_out.shape[0])
+        # discriminator_loss = discriminator_loss.mean()
+        progress_loss.backward()
         self.discriminator_optim.step()
+        return {"progress/progress_loss": progress_loss.item(), "progress/progress_acc": progress_acc.item()}
 
-    def update_discriminator(self, expert_replay, recent_traj_replay, n_finished_episodes):
-        if self.episode_based_discriminator_update:
-            self.discriminator_counter += n_finished_episodes
-        else:
-            self.discriminator_counter += 1
-        if self.discriminator_counter >= math.ceil(1.0 / self.discriminator_update_freq):
-            for _ in range(self.discriminator_update_n):
-                self.update_discriminator_helper(expert_replay, recent_traj_replay)
-            self.discriminator_counter = 0
-            return True
-        else:
-            return False
+    def update_discriminator(self, expert_replay):
+        ret = {}
+        n_ep = 0
+        n_steps = 0
+        for _ in range(self.discriminator_update_n):
+            training_info = self.update_discriminator_helper(expert_replay)
+            n_ep += np.sum(expert_replay["episode_dones"])
+            n_steps += len(expert_replay["progress"])
+            for k in training_info.keys():
+                if k not in ret:
+                    ret[k] = []
+                ret[k].append(training_info[k])
+        for k in ret:
+            ret[k] = np.mean(np.array(ret[k]))
+        return True, ret, n_ep, n_steps

@@ -355,6 +355,7 @@ def run_one_process(rank, world_size, args, cfg):
         expert_replay, recent_traj_replay = None, None
         if is_not_null(cfg.expert_replay_cfg):
             assert cfg.expert_replay_cfg.buffer_filenames is not None
+            
             expert_replay = build_replay(cfg.expert_replay_cfg)
         if is_not_null(cfg.recent_traj_replay_cfg):
             recent_traj_replay = build_replay(cfg.recent_traj_replay_cfg)

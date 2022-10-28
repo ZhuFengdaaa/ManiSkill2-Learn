@@ -131,7 +131,7 @@ progress_cfg=dict(
                 zero_init_output=True,
             ),
         ),
-        resume_from="/isaac/ManiSkill2-Learn/logs/etb-PegInsertionSide-log/models/model_final.ckpt"
+        resume_from="/isaac/ManiSkill2-Learn/logs/etb-PegInsertionSide-sigmoid-log/models/model_final.ckpt"
     ),
     progress_replay_cfg=dict(
         type="ReplayMemory",

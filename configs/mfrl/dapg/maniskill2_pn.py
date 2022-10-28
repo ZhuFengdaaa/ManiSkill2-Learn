@@ -115,3 +115,28 @@ eval_cfg = dict(
     log_every_step=False,
     env_cfg=dict(ignore_dones=False),
 )
+
+progress_cfg=dict(
+    progress_model_cfg=dict(
+        type="ContinuousCritic",
+        num_heads=1,
+        nn_cfg=dict(
+            type="Visuomotor",
+            visual_nn_cfg=dict(type="PointNet", feat_dim="pcd_all_channel", mlp_spec=[64, 128, 512], feature_transform=[]),
+            mlp_cfg=dict(
+                type="LinearMLP",
+                norm_cfg=None,
+                mlp_spec=["512 + agent_shape + action_shape", 256, 256, 1],
+                inactivated_output=True,
+                zero_init_output=True,
+            ),
+        ),
+        resume_from="/isaac/ManiSkill2-Learn/logs/etb-PegInsertionSide-log/models/model_final.ckpt"
+    ),
+    progress_replay_cfg=dict(
+        type="ReplayMemory",
+        capacity=int(4e2),
+        sampling_cfg=dict(type="OneStepTransition", with_replacement=False),
+    ),
+    sample_ratio=0.5
+)

@@ -3,6 +3,8 @@ import time
 import numpy as np
 from maniskill2_learn.utils.data import DictArray, GDict, to_np
 from maniskill2_learn.utils.meta import get_logger, get_world_size, get_world_rank
+import numpy as np
+import random
 
 from .builder import ROLLOUTS
 from .env_utils import build_vec_env
@@ -31,7 +33,7 @@ class Rollout:
         if not self.with_info:
             infos.pop("infos")
 
-    def forward_with_policy(self, pi=None, num=1, on_policy=False, replay=None):
+    def forward_with_policy(self, pi=None, num=1, on_policy=False, replay=None, progress_model=None, progress_replay=None, progress_sample_ratio=None):
         if pi is None:
             assert not on_policy
             ret = self.vec_env.step_random_actions(num)
@@ -71,6 +73,7 @@ class Rollout:
 
                 st = time.time()
                 item = self.vec_env.step_dict(actions)
+                state = self.vec_env.get_state()
                 sim_time += time.time() - st
                 self._process_infos(item)
 
@@ -79,6 +82,7 @@ class Rollout:
                 total += self.num_envs
                 item["worker_indices"] = np.arange(self.num_envs, dtype=np.int32)[:, None]
                 item["is_truncated"] = np.zeros(self.num_envs, dtype=np.bool_)[:, None]
+                item["_state"] = state
                 item = DictArray(item).copy().to_numpy()
                 for i in range(self.num_envs):
                     item_i = item.slice(i)  # Make a safe copy to replay buffer!
@@ -87,8 +91,36 @@ class Rollout:
                         unfinished -= len(trajs[i])
                         if len(trajs[i]) + finished > num:
                             trajs[i] = trajs[i][: num - finished]
+                        data = DictArray.stack(trajs[i], axis=0, wrapper=False)
 
-                        replay.push_batch(DictArray.stack(trajs[i], axis=0, wrapper=False))
+                        # progress reset
+                        device = next(progress_model.parameters()).device
+                        def make_tensor(data):
+                            if type(data) == np.ndarray:
+                                return torch.tensor(data).to(device)
+                            elif type(data) == dict:
+                                ret = {}
+                                for k in data.keys():
+                                    ret[k] = make_tensor(data[k])
+                                return ret
+                            else:
+                                raise NotImplementedError
+                        tensor_data = make_tensor(data)
+                        pgs_pred = torch.sigmoid(progress_model(tensor_data["obs"], tensor_data["actions"])).squeeze()
+                        # get top 5 obs
+                        indices = torch.topk(pgs_pred, 3)[1]
+                        good_states = []
+                        for idx in indices.tolist():
+                            good_states.append(trajs[i][idx])
+                        good_states_data = DictArray.stack(good_states, axis=0, wrapper=False)
+                        progress_replay.push_batch(good_states_data)
+                        # reset
+                        if random.uniform(0, 1) < progress_sample_ratio:
+                            good_state = progress_replay.sample(1)
+                            _state = good_state["_state"]
+                            self.vec_env.set_state(_state, [i])
+                        
+                        replay.push_batch(data)
                         finished += len(trajs[i])
                         trajs[i] = []
 

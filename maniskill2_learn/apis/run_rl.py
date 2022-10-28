@@ -11,6 +11,10 @@ from pathlib import Path
 import gym
 import numpy as np
 
+from maniskill2_learn.env import build_replay
+from maniskill2_learn.networks import build_model
+from maniskill2_learn.utils.torch import load_state_dict
+
 np.set_printoptions(3)
 warnings.simplefilter(action="ignore")
 
@@ -289,6 +293,24 @@ def main_rl(rollout, evaluator, replay, args, cfg, expert_replay=None, recent_tr
     else:
         logger.info(f"Train over CPU!")
 
+    
+    progress_model = build_model(cfg.progress_cfg.progress_model_cfg)
+    # p next(progress_model.values[0].backbone.final_mlp.mlp.linear0.parameters())
+    # load_checkpoint(progress_model, cfg.progress_cfg.resume_from, device, keys_map=None, logger=logger)
+    state_dict = torch.load(cfg.progress_cfg.progress_model_cfg.resume_from)["state_dict"]
+    # preprocess
+    new_state_dict = {}
+    for k in state_dict.keys():
+        if k.startswith("discriminator."):
+            _l = len("discriminator.")
+            new_state_dict[k[_l:]] = state_dict[k]
+    load_state_dict(progress_model, new_state_dict, False, logger)
+    progress_model.to(device)
+    progress_model.eval()
+    progress_replay = build_replay(cfg.progress_cfg.progress_replay_cfg)
+    progress_sample_ratio = cfg.progress_cfg.sample_ratio
+
+
     if not args.evaluation:
         train_rl(
             agent,
@@ -299,6 +321,9 @@ def main_rl(rollout, evaluator, replay, args, cfg, expert_replay=None, recent_tr
             eval_cfg=cfg.eval_cfg,
             expert_replay=expert_replay,
             recent_traj_replay=recent_traj_replay,
+            progress_model=progress_model,
+            progress_replay=progress_replay,
+            progress_sample_ratio=progress_sample_ratio,
             **cfg.train_cfg,
         )
     else:
@@ -349,7 +374,6 @@ def run_one_process(rank, world_size, args, cfg):
     # Create replay buffer for RL
     if is_not_null(cfg.replay_cfg) and (not args.evaluation or (args.reg_loss and cfg.replay_cfg.get("buffer_filenames", None) is not None)):
         logger.info(f"Build replay buffer!")
-        from maniskill2_learn.env import build_replay
 
         replay = build_replay(cfg.replay_cfg)
         expert_replay, recent_traj_replay = None, None

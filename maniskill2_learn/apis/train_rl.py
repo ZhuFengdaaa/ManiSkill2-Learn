@@ -157,6 +157,9 @@ def train_rl(
     ep_stats_cfg={},
     warm_up_training=False,
     warm_up_train_q_only=-1,
+    progress_model=None,
+    progress_replay=None,
+    progress_sample_ratio=None,
 ):
     world_rank = get_world_rank()
     logger = get_logger()
@@ -200,7 +203,7 @@ def train_rl(
         # Randomly warm up replay buffer for model-free RL and learned model for mode-based RL
         assert not on_policy
         assert rollout is not None
-        trajectories = rollout.forward_with_policy(agent if use_policy_to_warm_up else None, warm_steps)
+        trajectories = rollout.forward_with_policy(agent if use_policy_to_warm_up else None, warm_steps, progress_model=progress_model)
 
         episode_statistics.push(trajectories)
         replay.push_batch(trajectories)
@@ -249,6 +252,7 @@ def train_rl(
             episode_statistics.reset_history()
             if on_policy:
                 replay.reset()
+                progress_replay.reset()
                 rollout.reset()
                 agent.reset()
                 episode_statistics.reset_current()
@@ -275,7 +279,8 @@ def train_rl(
                 # Collect samples
                 start_time = time.time()
                 agent.eval()  # For things like batch norm
-                trajectories = rollout.forward_with_policy(agent, n_steps, on_policy, replay)
+                trajectories = rollout.forward_with_policy(agent, n_steps, on_policy, replay, \
+                    progress_model=progress_model, progress_replay=progress_replay, progress_sample_ratio=progress_sample_ratio)
 
                 if not print_replay_shape:
                     print_replay_shape = True

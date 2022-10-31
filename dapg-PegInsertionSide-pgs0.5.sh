@@ -1,6 +1,6 @@
 METHOD="dapg"
 ENV="PegInsertionSide"
-GPU="5"
+GPU="6"
 SAMPLE_RATIO="0.5"
 
 YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-pgs$SAMPLE_RATIO-log"

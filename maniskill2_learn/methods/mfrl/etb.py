@@ -69,7 +69,7 @@ class ETB(BaseAgent):
         )
        
         expert_sampled_batch = self.process_obs(expert_sampled_batch)
-
+        import ipdb; ipdb.set_trace()
         expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
         progress_loss = self.discriminator_criterion(expert_out, expert_sampled_batch["progress"])
         progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]

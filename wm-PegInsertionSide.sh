@@ -1,4 +1,4 @@
-METHOD="etb"
+METHOD="wm"
 ENV="PegInsertionSide"
 GPU="4"
 

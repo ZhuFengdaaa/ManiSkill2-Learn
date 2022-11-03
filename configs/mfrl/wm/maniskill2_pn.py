@@ -1,5 +1,5 @@
 agent_cfg = dict(
-    type="ETB",
+    type="WM",
     gamma=0.95,
     lmbda=0.95,
     critic_coeff=0.5,

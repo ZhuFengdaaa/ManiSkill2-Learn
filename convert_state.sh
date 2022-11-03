@@ -9,4 +9,5 @@ python3.8 ./tools/convert_state.py --num-procs 10 --env-name $ENV-v0 --traj-name
 --obs-mode=pointcloud \
 --reward-mode=dense \
 --obs-frame=ee \
---n-points=1200
+--n-points=1200 \
+--with-next

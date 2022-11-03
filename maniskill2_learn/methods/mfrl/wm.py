@@ -16,6 +16,7 @@ Learning Complex Dexterous Manipulation with Deep Reinforcement Learning and Dem
 
 from collections import defaultdict
 from copy import deepcopy
+import pytorch3d
 
 import numpy as np
 import torch
@@ -33,7 +34,7 @@ from ..builder import MFRL
 
 
 @MFRL.register_module()
-class ETB(BaseAgent):
+class WM(BaseAgent):
     def __init__(
         self,
         actor_cfg,
@@ -46,7 +47,7 @@ class ETB(BaseAgent):
         episode_based_discriminator_update=True,
         **kwargs
     ):
-        super(ETB, self).__init__()
+        super(WM, self).__init__()
         self.discriminator_update_n = discriminator_update_n
         self.discriminator_batch_size = discriminator_batch_size
         self.env_params = env_params
@@ -69,7 +70,38 @@ class ETB(BaseAgent):
         )
        
         expert_sampled_batch = self.process_obs(expert_sampled_batch)
-        import ipdb; ipdb.set_trace()
+        
+        # pose label
+        def convert_p2m(pose):
+            aw, ax, ay, az = torch.unbind(pose, -1)
+            m = torch.stack((
+                aw, -ax, -ay, -az,
+                ax, +aw, -az, +ay,
+                ay, +az, +aw, -ax,
+                az, -ay, +ax, +aw,
+            ), dim=1).view(-1, 4, 4)
+            return m
+
+        current_tcp = expert_sampled_batch["obs"]["tcp_pose"]
+        next_tcp = expert_sampled_batch["next_obs"]["tcp_pose"]
+        current_tcp_pose = current_tcp[:, 3:]
+        next_tcp_pose = next_tcp[:, 3:]
+        m = convert_p2m(current_tcp_pose)
+        m_inv = torch.inverse(m)
+        delta_pose = torch.bmm(m_inv, next_tcp_pose.unsqueeze(2)).squeeze()
+        # _next_tcp_pose = torch.bmm(m, delta_pose.unsqueeze(2)).squeeze()
+        
+        # for test
+        import pytorch3d
+        _next_tcp_pose = pytorch3d.transforms.quaternion_multiply(current_tcp_pose, delta_pose)
+        next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(next_tcp_pose)
+        _next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(_next_tcp_pose)
+
+        
+
+        # xyz label
+        # delta_xyz = 
+        
         expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
         progress_loss = self.discriminator_criterion(expert_out, expert_sampled_batch["progress"])
         progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]

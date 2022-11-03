@@ -562,7 +562,7 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
                     )
 
             ret["state"] = agent_state
-            ret["hand"] = observation["extra"]["tcp_pose"]
+            ret["tcp_pose"] = np.concatenate([tcp_pose.p, tcp_pose.q], axis=0)
             return ret
 
         elif self.obs_mode == "particles" and "particles" in observation.keys():

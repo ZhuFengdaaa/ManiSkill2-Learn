@@ -70,7 +70,7 @@ class TransformerBlock(ExtendedModule):
 
 @BACKBONES.register_module()
 class TransformerEncoder(ExtendedModule):
-    def __init__(self, block_cfg, pooling_cfg=None, mlp_cfg=None, num_blocks=6, with_task_embedding=False):
+    def __init__(self, block_cfg, pooling_cfg=None, mlp_cfg=None, num_blocks=6, with_task_embedding=False, input_embedding=False, embedding_cfg=None):
         super(TransformerEncoder, self).__init__()
 
         if with_task_embedding:
@@ -78,6 +78,10 @@ class TransformerEncoder(ExtendedModule):
             self.task_embedding = nn.Parameter(torch.empty(1, 1, embed_dim))
             nn.init.xavier_normal_(self.task_embedding)
         self.with_task_embedding = with_task_embedding
+
+        if input_embedding:
+            self.input_embedding = input_embedding
+            self.embedding_layer = build_backbone(embedding_cfg)
 
         self.attn_blocks = ExtendedModuleList([TransformerBlock(**block_cfg) for i in range(num_blocks)])
         self.pooling = None if pooling_cfg is None else build_attention_layer(pooling_cfg, default_args=dict(type="AttentionPooling"))
@@ -95,6 +99,8 @@ class TransformerEncoder(ExtendedModule):
         if mask is None:
             mask = torch.ones(B, N, N, dtype=x.dtype, device=x.device)
         mask = mask.type_as(x)
+        if self.input_embedding:
+            x = self.embedding_layer(x)
         if self.with_task_embedding:
             one = torch.ones_like(mask[:, :, 0])
             mask = torch.cat([one.unsqueeze(1), mask], dim=1)  # (B, N+1, N)
@@ -103,7 +109,10 @@ class TransformerEncoder(ExtendedModule):
             x = torch.cat([torch.repeat_interleave(self.task_embedding, x.size(0), dim=0), x], dim=1)
 
         for i, attn in enumerate(self.attn_blocks):
-            x = attn(x, mask)[0]
+            try:
+                x = attn(x, mask)[0]
+            except:
+                import ipdb; ipdb.set_trace()
         if self.pooling is not None:
             x = self.pooling(x)
         if self.global_mlp is not None:

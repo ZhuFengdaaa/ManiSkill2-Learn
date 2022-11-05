@@ -35,6 +35,7 @@ def build_model(cfg, default_args=None):
     for model_type in [BACKBONES, POLICYNETWORKS, VALUENETWORKS, MODELNETWORKS]:
         if cfg["type"] in model_type.module_dict:
             return build(cfg, model_type, default_args)
+    import ipdb; ipdb.set_trace()
     raise RuntimeError(f"This model type:{cfg['type']} does not exist!")
 
 

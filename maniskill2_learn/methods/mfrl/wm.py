@@ -39,7 +39,7 @@ class WM(BaseAgent):
         self,
         actor_cfg,
         critic_cfg,
-        discriminator_cfg,
+        wm_cfg,
         env_params,
         batch_size=256,
         discriminator_batch_size=512,
@@ -48,24 +48,24 @@ class WM(BaseAgent):
         **kwargs
     ):
         super(WM, self).__init__()
-        self.discriminator_update_n = discriminator_update_n
-        self.discriminator_batch_size = discriminator_batch_size
+        self.world_model_update_n = discriminator_update_n
+        self.world_model_batch_size = discriminator_batch_size
         self.env_params = env_params
         self.actor = None
         self.critic = None
-        discriminator_optim_cfg = discriminator_cfg.pop("optim_cfg")
-        self.discriminator = build_model(discriminator_cfg)
-        self.discriminator_optim = build_optimizer(self.discriminator, discriminator_optim_cfg)
-        self.discriminator_criterion = torch.nn.BCEWithLogitsLoss()
-        # self.discriminator_criterion = torch.nn.MSELoss()
+        wm_optim_cfg = wm_cfg.pop("optim_cfg")
+        self.world_model = build_model(wm_cfg)
+        self.world_model_optim = build_optimizer(self.world_model, wm_optim_cfg)
+        self.world_model_criterion = torch.nn.L1Loss()
+        # self.world_model_criterion = torch.nn.MSELoss()
         
 
     def update_parameters(self, memory, updates, expert_replay):
         pass
 
     def update_discriminator_helper(self, expert_replay):
-        self.discriminator_optim.zero_grad()
-        expert_sampled_batch = expert_replay.sample(self.discriminator_batch_size // 2).to_torch(
+        self.world_model_optim.zero_grad()
+        expert_sampled_batch = expert_replay.sample(self.world_model_batch_size // 2).to_torch(
             dtype="float32", device=self.device, non_blocking=True
         )
        
@@ -81,52 +81,65 @@ class WM(BaseAgent):
                 az, -ay, +ax, +aw,
             ), dim=1).view(-1, 4, 4)
             return m
+        
+        def embedding_angle(theta_list):
+            ret = []
+            for theta in theta_list:
+                ret.append(torch.sin(theta).unsqueeze(1))
+                ret.append(torch.cos(theta).unsqueeze(1))
+            ret = torch.cat(ret, dim=1)
+            return ret
 
         current_tcp = expert_sampled_batch["obs"]["tcp_pose"]
         next_tcp = expert_sampled_batch["next_obs"]["tcp_pose"]
+        current_tcp_xyz = current_tcp[:, :3]
+        next_tcp_xyz = next_tcp[:, :3]
         current_tcp_pose = current_tcp[:, 3:]
         next_tcp_pose = next_tcp[:, 3:]
         m = convert_p2m(current_tcp_pose)
         m_inv = torch.inverse(m)
-        delta_pose = torch.bmm(m_inv, next_tcp_pose.unsqueeze(2)).squeeze()
-        # _next_tcp_pose = torch.bmm(m, delta_pose.unsqueeze(2)).squeeze()
-        
-        # for test
-        import pytorch3d
-        _next_tcp_pose = pytorch3d.transforms.quaternion_multiply(current_tcp_pose, delta_pose)
-        next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(next_tcp_pose)
-        _next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(_next_tcp_pose)
+        delta_pose = torch.bmm(m_inv, next_tcp_pose.unsqueeze(2)).squeeze() # wxyz
+        delta_pose_emb = embedding_angle(torch.unbind(delta_pose, -1))
+        delta_xyz = next_tcp_xyz - current_tcp_xyz
 
-        
+        # delta = torch.cat([delta_xyz, delta_pose], dim=1)
+        delta = torch.cat([delta_xyz, delta_pose_emb], dim=1)
+        current_state = expert_sampled_batch["obs"]["state"]
+        input = torch.cat([delta, current_state], dim=1)
+
+        # _next_tcp_pose = torch.bmm(m, delta_pose.unsqueeze(2)).squeeze()
+        # for test
+        # import pytorch3d
+        # _next_tcp_pose = pytorch3d.transforms.quaternion_multiply(current_tcp_pose, delta_pose)
+        # next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(next_tcp_pose)
+        # _next_tcp_axis = pytorch3d.transforms.quaternion_to_axis_angle(_next_tcp_pose)
+        # import ipdb; ipdb.set_trace()
 
         # xyz label
         # delta_xyz = 
-        
-        expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
-        progress_loss = self.discriminator_criterion(expert_out, expert_sampled_batch["progress"])
-        progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]
-        # expert_out = self.discriminator(expert_sampled_batch["obs"], expert_sampled_batch["actions"])
-        # progress_loss = self.discriminator_criterion(torch.sigmoid(expert_out), expert_sampled_batch["progress"])
-        # progress_acc = torch.sum(torch.abs(torch.sigmoid(expert_out) - expert_sampled_batch["progress"]) < 0.01) / expert_out.shape[0]
+        label = expert_sampled_batch["actions"]
+        pred = self.world_model(input.unsqueeze(2))
+        world_model_loss = self.world_model_criterion(pred,  label)
+        world_model_loss.backward()
+        self.world_model_optim.step()
 
-        
-        # discriminator_loss = self.discriminator_criterion(
-        #     expert_out, torch.zeros((expert_out.shape[0], 1), device=self.device)
-        # ) + self.discriminator_criterion(recent_traj_out, torch.ones((recent_traj_out.shape[0], 1), device=self.device))
-        # disc_acc = (torch.sum(expert_out < 0.5) + torch.sum(recent_traj_out > 0.5))/(expert_out.shape[0]+recent_traj_out.shape[0])
-        # discriminator_loss = discriminator_loss.mean()
-        progress_loss.backward()
-        self.discriminator_optim.step()
-        return {"progress/progress_loss": progress_loss.item(), "progress/progress_acc": progress_acc.item()}
+        # acc
+        acc_1 = torch.mean(((torch.abs(pred - label)/abs(label))<0.01).float())
+        acc_10 = torch.mean(((torch.abs(pred - label)/abs(label))<0.1).float())
+
+        return {"world_model/world_model_loss": world_model_loss.item(), 
+                "world_model/acc_1": acc_1.item(),
+                "world_model/acc_10": acc_10.item(),
+        }
 
     def update_discriminator(self, expert_replay):
         ret = {}
         n_ep = 0
         n_steps = 0
-        for _ in range(self.discriminator_update_n):
+        for _ in range(self.world_model_update_n):
             training_info = self.update_discriminator_helper(expert_replay)
             n_ep += np.sum(expert_replay["episode_dones"])
-            n_steps += len(expert_replay["progress"])
+            n_steps += len(expert_replay["rewards"])
             for k in training_info.keys():
                 if k not in ret:
                     ret[k] = []

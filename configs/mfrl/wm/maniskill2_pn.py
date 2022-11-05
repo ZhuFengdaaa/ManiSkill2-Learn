@@ -75,22 +75,66 @@ agent_cfg = dict(
             "PATH_TO_DEMO.h5",
         ],
     ),
-    discriminator_cfg=dict(
-        type="ContinuousCritic",
-        num_heads=1,
-        nn_cfg=dict(
-            type="Visuomotor",
-            visual_nn_cfg=dict(type="PointNet", feat_dim="pcd_all_channel", mlp_spec=[64, 128, 512], feature_transform=[]),
+    wm_cfg=dict(
+        type="TransformerEncoder",
+        block_cfg=dict(
+            attention_cfg=dict(
+                type="MultiHeadAttention",
+                embed_dim=128,
+                num_heads=1,
+                latent_dim=256
+            ),
             mlp_cfg=dict(
                 type="LinearMLP",
                 norm_cfg=None,
-                mlp_spec=["512 + agent_shape + action_shape", 256, 256, 1],
-                inactivated_output=True,
+                inactivated_output=False,
                 zero_init_output=True,
-            ),
+                mlp_spec=[128,128],
+            )
+        ),
+        mlp_cfg=dict(
+            type="LinearMLP",
+            norm_cfg=None,
+            inactivated_output=True,
+            zero_init_output=True,
+            mlp_spec=[128,128,"action_shape"],
+        ),
+        num_blocks=2,
+        with_task_embedding=False,
+        input_embedding=True,
+        embedding_cfg=dict(
+            type="LinearMLP",
+            norm_cfg=None,
+            inactivated_output=False,
+            zero_init_output=True,
+            mlp_spec=[1,128],
         ),
         optim_cfg=dict(type="Adam", lr=3e-4),
     ), 
+    # wm_cfg=dict(
+    #     type="LinearMLP",
+    #     norm_cfg=None,
+    #     mlp_spec=[35, 256, 256, 256, "action_shape"],
+    #     inactivated_output=True,
+    #     zero_init_output=True,
+    #     optim_cfg=dict(type="Adam", lr=3e-4),
+    # ), 
+    # discriminator_cfg=dict(
+    #     type="ContinuousCritic",
+    #     num_heads=1,
+    #     nn_cfg=dict(
+    #         type="Visuomotor",
+    #         visual_nn_cfg=dict(type="PointNet", feat_dim="pcd_all_channel", mlp_spec=[64, 128, 512], feature_transform=[]),
+    #         mlp_cfg=dict(
+    #             type="LinearMLP",
+    #             norm_cfg=None,
+    #             mlp_spec=["512 + agent_shape + action_shape", 256, 256, 1],
+    #             inactivated_output=True,
+    #             zero_init_output=True,
+    #         ),
+    #     ),
+    #     optim_cfg=dict(type="Adam", lr=3e-4),
+    # ), 
 )
 
 

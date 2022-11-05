@@ -2,7 +2,7 @@ METHOD="wm"
 ENV="PegInsertionSide"
 GPU="4"
 
-YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-debug"
+YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-transformer"
 
 python3.8 maniskill2_learn/apis/run_rl.py configs/mfrl/$METHOD/maniskill2_pn.py \
 --work-dir $YOUR_LOGGING_DIRECTORY --gpu-ids $GPU --sim-gpu-ids $GPU \

@@ -93,14 +93,14 @@ class TransformerEncoder(ExtendedModule):
         :param mask: [B, N, N] [batch size, len, len] a mask for disallowing attention to padding tokens.
         :return: [B, F] or [B, N, F] A single tensor or a series of tensor containing the output from the Transformer
         """
+        if self.input_embedding:
+            x = self.embedding_layer(x)
         assert x.ndim == 3
         B, N, E = x.shape
         assert mask is None or list(mask.shape) == [B, N, N], f"{mask.shape} {[B, N, N]}"
         if mask is None:
             mask = torch.ones(B, N, N, dtype=x.dtype, device=x.device)
         mask = mask.type_as(x)
-        if self.input_embedding:
-            x = self.embedding_layer(x)
         if self.with_task_embedding:
             one = torch.ones_like(mask[:, :, 0])
             mask = torch.cat([one.unsqueeze(1), mask], dim=1)  # (B, N+1, N)
@@ -109,10 +109,7 @@ class TransformerEncoder(ExtendedModule):
             x = torch.cat([torch.repeat_interleave(self.task_embedding, x.size(0), dim=0), x], dim=1)
 
         for i, attn in enumerate(self.attn_blocks):
-            try:
-                x = attn(x, mask)[0]
-            except:
-                import ipdb; ipdb.set_trace()
+            x = attn(x, mask)[0]
         if self.pooling is not None:
             x = self.pooling(x)
         if self.global_mlp is not None:

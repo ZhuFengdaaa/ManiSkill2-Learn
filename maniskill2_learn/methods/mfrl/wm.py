@@ -119,6 +119,7 @@ class WM(BaseAgent):
         # delta_xyz = 
         label = expert_sampled_batch["actions"]
         pred = self.world_model(input.unsqueeze(2))
+        import ipdb; ipdb.set_trace()
         world_model_loss = self.world_model_criterion(pred,  label)
         world_model_loss.backward()
         self.world_model_optim.step()

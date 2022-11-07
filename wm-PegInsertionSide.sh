@@ -1,6 +1,6 @@
 METHOD="wm"
 ENV="PegInsertionSide"
-GPU="4"
+GPU="0"
 
 YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-debug"
 

@@ -70,7 +70,7 @@ class TransformerBlock(ExtendedModule):
 
 @BACKBONES.register_module()
 class TransformerEncoder(ExtendedModule):
-    def __init__(self, block_cfg, pooling_cfg=None, mlp_cfg=None, num_blocks=6, with_task_embedding=False, input_embedding=False, embedding_cfg=None):
+    def __init__(self, block_cfg, pooling_cfg=None, mlp_cfg=None, mlp_cfg2=None, num_blocks=6, with_task_embedding=False, input_embedding=False, embedding_cfg=None):
         super(TransformerEncoder, self).__init__()
 
         if with_task_embedding:
@@ -86,6 +86,7 @@ class TransformerEncoder(ExtendedModule):
         self.attn_blocks = ExtendedModuleList([TransformerBlock(**block_cfg) for i in range(num_blocks)])
         self.pooling = None if pooling_cfg is None else build_attention_layer(pooling_cfg, default_args=dict(type="AttentionPooling"))
         self.global_mlp = build_backbone(mlp_cfg) if mlp_cfg is not None else None
+        self.global_mlp2 = build_backbone(mlp_cfg2) if mlp_cfg2 is not None else None
 
     def forward(self, x, mask=None):
         """
@@ -114,6 +115,9 @@ class TransformerEncoder(ExtendedModule):
             x = self.pooling(x)
         if self.global_mlp is not None:
             x = self.global_mlp(x)
+        if self.global_mlp2 is not None:
+            x = x.view(*x.shape[:-2], -1)
+            x = self.global_mlp2(x)
         return x
 
     def get_atten_score(self, x, mask=None):

@@ -1,6 +1,6 @@
 METHOD="wm"
 ENV="PegInsertionSide"
-GPU="7"
+GPU="0"
 
 YOUR_LOGGING_DIRECTORY="logs/$METHOD-$ENV-transformer"
 

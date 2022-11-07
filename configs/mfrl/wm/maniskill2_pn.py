@@ -81,7 +81,7 @@ agent_cfg = dict(
             attention_cfg=dict(
                 type="MultiHeadSelfAttention",
                 embed_dim=128,
-                num_heads=1,
+                num_heads=2,
                 latent_dim=256
             ),
             mlp_cfg=dict(
@@ -95,9 +95,16 @@ agent_cfg = dict(
         mlp_cfg=dict(
             type="LinearMLP",
             norm_cfg=None,
+            inactivated_output=False,
+            zero_init_output=True,
+            mlp_spec=[128,32],
+        ),
+        mlp_cfg2=dict(
+            type="LinearMLP",
+            norm_cfg=None,
             inactivated_output=True,
             zero_init_output=True,
-            mlp_spec=[128,128,"action_shape"],
+            mlp_spec=[1120,128,"action_shape"],
         ),
         num_blocks=2,
         with_task_embedding=False,

@@ -104,7 +104,7 @@ agent_cfg = dict(
             norm_cfg=None,
             inactivated_output=True,
             zero_init_output=True,
-            mlp_spec=[1120,128,"action_shape"],
+            mlp_spec=[1120,128,"action_shape - 1"],
         ),
         num_blocks=2,
         with_task_embedding=False,

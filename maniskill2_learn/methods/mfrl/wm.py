@@ -106,6 +106,11 @@ class WM(BaseAgent):
         delta = torch.cat([delta_xyz, delta_pose_emb], dim=1)
         current_state = expert_sampled_batch["obs"]["state"]
         input = torch.cat([delta, current_state], dim=1)
+        # pos = torch.arange(input.shape[-1]).to(input.get_device())
+        # pos = pos.unsqueeze(0).repeat([input.shape[0],1])
+        # sin_pos = torch.sin(pos)
+        # cos_pos = torch.cos(pos)
+        # input = torch.cat([input.unsqueeze(2), sin_pos.unsqueeze(2), cos_pos.unsqueeze(2)], dim=2)
 
         # _next_tcp_pose = torch.bmm(m, delta_pose.unsqueeze(2)).squeeze()
         # for test
@@ -117,8 +122,10 @@ class WM(BaseAgent):
 
         # xyz label
         # delta_xyz = 
-        label = expert_sampled_batch["actions"]
-        pred = self.world_model(input.unsqueeze(2))
+        label = expert_sampled_batch["actions"][:,7]
+        input = input.unsqueeze(2)
+        pred = self.world_model(input)
+        import ipdb; ipdb.set_trace()
         world_model_loss = self.world_model_criterion(pred,  label)
         world_model_loss.backward()
         self.world_model_optim.step()

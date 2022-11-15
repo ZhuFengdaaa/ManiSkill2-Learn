@@ -6,7 +6,7 @@ from gym.wrappers import TimeLimit
 from maniskill2_learn.utils.data import GDict, get_dtype
 from maniskill2_learn.utils.meta import Registry, build_from_cfg, dict_of, get_logger
 from .action_space_utils import StackedDiscrete, unstack_action_space
-from .wrappers import ManiSkill2_ObsWrapper, RenderInfoWrapper, ExtendedEnv, BufferAugmentedEnv, build_wrapper
+from .wrappers import ManiSkill2_ObsWrapper, RenderInfoWrapper, ExtendedEnv, DiscreteEnv, BufferAugmentedEnv, build_wrapper
 
 ENVS = Registry("env")
 
@@ -175,7 +175,8 @@ def make_gym_env(
     if use_time_limit and not unwrapped:
         env = TimeLimit(env, int(max_episode_steps * time_horizon_factor))
 
-    env = ExtendedEnv(env, reward_scale, use_cost)
+    # env = ExtendedEnv(env, reward_scale, use_cost)
+    env = DiscreteEnv(env, reward_scale, use_cost)
 
     if buffers is not None:
         env = BufferAugmentedEnv(env, buffers=buffers)

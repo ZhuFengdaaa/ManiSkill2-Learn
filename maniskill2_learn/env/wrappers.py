@@ -170,6 +170,28 @@ class ExtendedEnv(ExtendedWrapper):
         return ret
 
 
+class DiscreteEnv(ExtendedEnv):
+    def __init__(self, *args):
+        super(DiscreteEnv, self).__init__(*args)
+    
+    # def reset(self, *args, **kwargs):
+    #     raise NotImplementedError
+        
+    def dis2cont_action(self, action):
+        import ipdb; ipdb.set_trace()
+        pass
+
+    def step(self, action, *args, **kwargs):
+        cont_action = self.dis2cont_action(action)
+        return super(DiscreteEnv, self).step(action)
+        # action = self._process_action(action)
+        # obs, reward, done, info = self.env.step(action, *args, **kwargs)
+        # if isinstance(info, dict) and "TimeLimit.truncated" not in info:
+        #     info["TimeLimit.truncated"] = False
+        # obs, info = GDict([obs, info]).f64_to_f32(wrapper=False)
+        # return obs, np.float32(reward * self.reward_scale), np.bool_(done), info
+
+
 @WRAPPERS.register_module()
 class FixedInitWrapper(ExtendedWrapper):
     def __init__(self, env, init_state, level=None, *args, **kwargs):

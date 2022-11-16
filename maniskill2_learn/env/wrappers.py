@@ -173,17 +173,45 @@ class ExtendedEnv(ExtendedWrapper):
 class DiscreteEnv(ExtendedEnv):
     def __init__(self, *args):
         super(DiscreteEnv, self).__init__(*args)
+        self.super_action_space = args[0].action_space
+        self.joint_dim = self.action_space.shape[0] - 1 # -1 gripper
+        self.discrete_dim = self.joint_dim * 2 + 1 + 1 # forward/backward + gripper + stop
+        self.action_space = Discrete(self.discrete_dim)
+        self.gripper_state = None
+        self.unit = 0.02
+
+    # @property
+    # def action_space(self):
+    #     return Discrete(self.discrete_dim)
     
-    # def reset(self, *args, **kwargs):
-    #     raise NotImplementedError
+    
+    def reset(self, *args, **kwargs):
+        self.gripper_state = 1 # 1 open, -1 close
+        return super(DiscreteEnv, self).reset(*args, **kwargs)
         
+    def flip_griper(self):
+        self.gripper_state = - self.gripper_state
+        return self.gripper_state
+
     def dis2cont_action(self, action):
-        import ipdb; ipdb.set_trace()
-        pass
+        cont_action = np.zeros(self.joint_dim,)
+        # stop
+        if action == self.discrete_dim - 1:
+            cont_action = np.concatenate([cont_action, np.array([self.gripper_state])], axis=0)
+        elif action == self.discrete_dim - 2:
+            cont_action = np.concatenate([cont_action, np.array([self.flip_griper()])], axis=0)
+        else:
+            _dim = action // 2
+            _dir = action % 2
+            flag = 1 if _dir > 0 else -1
+            cont_action[_dim] = flag * self.unit
+            cont_action = np.concatenate([cont_action, np.array([self.gripper_state])], axis=0)
+        return cont_action
 
     def step(self, action, *args, **kwargs):
         cont_action = self.dis2cont_action(action)
-        return super(DiscreteEnv, self).step(action)
+        res = super(DiscreteEnv, self).step(cont_action)
+        return res
         # action = self._process_action(action)
         # obs, reward, done, info = self.env.step(action, *args, **kwargs)
         # if isinstance(info, dict) and "TimeLimit.truncated" not in info:
@@ -376,6 +404,7 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
                 {'tcp_pose': 7, 'goal_pos': 3}
             }
             """
+            import ipdb; ipdb.set_trace()
             # Calculate coordinate transformations that transforms poses in the world to self.obs_frame
             # These "to_origin" coordinate transformations are formally T_{self.obs_frame -> world}^{self.obs_frame}
             if self.obs_frame in ["base", "world"]:

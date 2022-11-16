@@ -180,6 +180,12 @@ class PPO(BaseAgent):
         critic_loss = critic_loss.mean() if samples["is_valid"] is None else critic_loss[samples["is_valid"]].mean()
         return critic_loss, feature, visual_feature
 
+    def cont2dis_action(action):
+        unit = 0.02
+        _bs, _channel = demo_samples["actions"].shape
+        dis_channel = (_channel - 1) * 2 + 2
+        dis_action = np.zeros(_bs, dis_channel)
+    
     def update_actor_critic(self, samples, demo_samples=None, with_critic=False):
         """
         Returns True if self.max_kl is not None and

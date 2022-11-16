@@ -6,6 +6,7 @@ from gym.wrappers import TimeLimit
 from maniskill2_learn.utils.data import GDict, get_dtype
 from maniskill2_learn.utils.meta import Registry, build_from_cfg, dict_of, get_logger
 from .action_space_utils import StackedDiscrete, unstack_action_space
+from gym.spaces import Discrete
 from .wrappers import ManiSkill2_ObsWrapper, RenderInfoWrapper, ExtendedEnv, DiscreteEnv, BufferAugmentedEnv, build_wrapper
 
 ENVS = Registry("env")
@@ -74,8 +75,10 @@ def get_env_info(env_cfg=None, vec_env=None):
     obs_shape = GDict(vec_env.reset()).slice(0).list_shape
     action_space = unstack_action_space(vec_env.action_space)
     action = action_space.sample()
-    assert isinstance(action_space, (Box, StackedDiscrete)), f"Error type {type(action_space)}!"
-    is_discrete = isinstance(action_space, StackedDiscrete)
+    # assert isinstance(action_space, (Box, StackedDiscrete)), f"Error type {type(action_space)}!"
+    # is_discrete = isinstance(action_space, StackedDiscrete)
+    assert isinstance(action_space, (Box, Discrete)), f"Error type {type(action_space)}!"
+    is_discrete = isinstance(action_space, Discrete)
     if is_discrete:
         action_shape = vec_env.action_space.n
         get_logger().info(f"Environment has the discrete action space with {action_shape} choices.")

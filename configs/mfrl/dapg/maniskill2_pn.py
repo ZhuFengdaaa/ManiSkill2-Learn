@@ -23,12 +23,10 @@ agent_cfg = dict(
     dapg_lambda=0.1,
     dapg_damping=0.995,
     actor_cfg=dict(
-        type="ContinuousActor",
+        type="DiscreteActor",
         head_cfg=dict(
-            type="GaussianHead",
-            init_log_std=-1,
-            clip_return=True,
-            predict_std=False,
+            type="DiscreteBaseHead",
+            num_choices="(action_shape-1)*2+2",
         ),
         nn_cfg=dict(
             type="Visuomotor",

@@ -61,6 +61,7 @@ class DiscreteActor(ActorCriticBase):
         replaceable_kwargs = get_kwargs_from_shape(obs_shape, action_shape)
         nn_cfg, mlp_cfg = replace_placeholder_with_args([nn_cfg, mlp_cfg], **replaceable_kwargs)
         assert isinstance(action_space, Discrete), "If you are training over discrete action space, you need ContinuousActor"
+        
         head_cfg["num_choices"] = action_shape
         super(DiscreteActor, self).__init__(nn_cfg=nn_cfg, head_cfg=head_cfg, mlp_cfg=mlp_cfg, backbone=backbone)
 

@@ -180,7 +180,8 @@ class PPO(BaseAgent):
         critic_loss = critic_loss.mean() if samples["is_valid"] is None else critic_loss[samples["is_valid"]].mean()
         return critic_loss, feature, visual_feature
 
-    def cont2dis_action(action):
+    def cont2dis_action(self, action):
+        import ipdb; ipdb.set_trace()
         unit = 0.02
         _bs, _channel = demo_samples["actions"].shape
         dis_channel = (_channel - 1) * 2 + 2
@@ -269,7 +270,8 @@ class PPO(BaseAgent):
         # DAPG actor loss
         if demo_samples is not None:
             new_demo_distributions = self.actor(demo_samples["obs"], mode="dist")
-            nll_loss_demo = -new_demo_distributions.log_prob(demo_samples["actions"]).mean()
+            demo_actions = self.cont2dis_action(demo_samples["actions"])
+            nll_loss_demo = -new_demo_distributions.log_prob(demo_actions).mean()
             demo_actor_loss = nll_loss_demo * self.dapg_lambda
             with torch.no_grad():
                 ret["dapg/demo_nll_loss"] = nll_loss_demo.item()

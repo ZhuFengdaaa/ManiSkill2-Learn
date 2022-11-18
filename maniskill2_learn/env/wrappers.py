@@ -404,7 +404,6 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
                 {'tcp_pose': 7, 'goal_pos': 3}
             }
             """
-            import ipdb; ipdb.set_trace()
             # Calculate coordinate transformations that transforms poses in the world to self.obs_frame
             # These "to_origin" coordinate transformations are formally T_{self.obs_frame -> world}^{self.obs_frame}
             if self.obs_frame in ["base", "world"]:

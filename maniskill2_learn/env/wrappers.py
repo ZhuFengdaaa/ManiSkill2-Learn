@@ -277,6 +277,16 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
             done = False
         return next_obs, reward, done, info
 
+    def get_env_state(self):
+        ret = {}
+        if hasattr(self.env, "get_state"):
+            ret["env_states"] = self.env.get_state()
+        # if hasattr(self.env.unwrapped, "_scene") and save_scene_state:
+        #     ret["env_scene_states"] = self.env.unwrapped._scene.pack()
+        if hasattr(self.env, "level"):
+            ret["env_levels"] = self.env.level
+        return ret
+
     def get_obs(self):
         return self.observation(self.env.get_obs())
 
@@ -612,6 +622,7 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
                     )
 
             ret["state"] = agent_state
+            ret.update(self.get_env_state())
             return ret
 
         elif self.obs_mode == "particles" and "particles" in observation.keys():

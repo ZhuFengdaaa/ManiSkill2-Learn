@@ -621,8 +621,9 @@ class ManiSkill2_ObsWrapper(ExtendedWrapper, ObservationWrapper):
                         ]
                     )
 
+            ret["tcp_pose"] = tcp_pose
             ret["state"] = agent_state
-            ret.update(self.get_env_state())
+            # ret.update(self.get_env_state())
             return ret
 
         elif self.obs_mode == "particles" and "particles" in observation.keys():

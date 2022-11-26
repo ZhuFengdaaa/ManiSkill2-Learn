@@ -83,6 +83,7 @@ def convert_state_representation(keys, args, worker_id, main_process_id):
         replay = ReplayMemory(length)
         next_obs = None
         for i in range(length):
+            _env_state = env.get_state()
             if all_env_states_present:
                 if next_obs is None:
                     env_state = trajectory["env_states"][i]
@@ -104,7 +105,6 @@ def convert_state_representation(keys, args, worker_id, main_process_id):
                 else:
                     obs = next_obs
                 next_obs, reward, _, _ = env.step(trajectory["actions"][i])
-
             item_i = {
                 "obs": obs,
                 "actions": trajectory["actions"][i],
@@ -112,6 +112,9 @@ def convert_state_representation(keys, args, worker_id, main_process_id):
                 "episode_dones": False if i < length - 1 else True,
                 "rewards": reward,
             }
+
+            if args.with_env_state:
+                item_i["env_states"] = _env_state
 
             if args.with_next:
                 item_i["next_obs"] = next_obs
@@ -156,6 +159,7 @@ def parse_args():
     parser.add_argument("--control-mode", default="pd_joint_delta_pos", type=str, help="Environment control Mode")
     parser.add_argument("--reward-mode", default="dense", type=str, choices=["dense", "sparse"], help="Reward Mode (dense / sparse)")
     parser.add_argument("--with-next", default=False, action="store_true", help="Add next_obs into the output file (for e.g. SAC+GAIL training)")    
+    parser.add_argument("--with-env-state", default=False, action="store_true", help="")    
     parser.add_argument("--render", default=False, action="store_true", help="Render the environment while generating demonstrations")
     parser.add_argument("--debug", default=False, action="store_true", help="Debug print")
     parser.add_argument("--force", default=False, action="store_true", help="Force-regenerate the output trajectory file")

@@ -18,7 +18,6 @@ from maniskill2_learn.utils.file import load_hdf5, dump_hdf5
 from maniskill2_learn.env import make_gym_env
 
 data_file = "/isaac/ManiSkill2-data/rigid_body_envs/PegInsertionSide-v0/trajectory.h5.pcd"
-write_data_file = "/isaac/ManiSkill2-data/rigid_body_envs/PegInsertionSide-v0/trajectory_disc.h5"
 
 h5 = h5py.File(data_file ,'r')
 data = load_hdf5(h5)
@@ -111,9 +110,10 @@ def select_disc(env, init_state, tcp_pose_gt, gripper_gt):
     tcp_pose = env.get_obs()["tcp_pose"]
     print(f"tcp_axis: {tcp2axis(tcp_pose)}")
     tcp_axis_best = []
-    # for i in range(all_dim):
-    for i in range(1):
-        # init
+    # optim xyzabc
+    for i in range(all_dim):
+    # optim only x
+    # for i in range(1):
         diff_list = []
         tcp_axis_list = []
         for _move in joint_moves:
@@ -130,7 +130,7 @@ def select_disc(env, init_state, tcp_pose_gt, gripper_gt):
         move_list.append(move_idx)
         tcp_axis_best.append(tcp_axis_list[move_idx][0][i] if i<x_dim else tcp_axis_list[move_idx][1][i-x_dim])
     print(f"tcp_axis_best: {tcp_axis_best}")
-    move_list += [2]*(a_dim+2)
+    # move_list += [2]*(a_dim+2) # optim only x
     move_list.append(gripper_moves.index(gripper_gt))
     disc_action = np.array(move_list)
     return disc_action
@@ -144,50 +144,31 @@ def save_video(image_list, filename):
 cnt = 0
 for k in data:
     traj = data[k]
-    trajectory = GDict.from_hdf5(input_h5[k])
-    trajectory = auto_fix_wrong_name(trajectory)
-    cont_actions = traj["actions"]
     states = traj["env_states"]
-    traj_len = len(states)
+    actions = traj["actions"]
+    traj_len = len(actions)
     cur_episode_num = eval(k.split('_')[-1])
     env.reset(**reset_kwargs[cur_episode_num])
     env_gt.reset(**reset_kwargs[cur_episode_num])
     img_list, img_gt_list = [], []
-    # for i in range(traj_len):
-    #     action = traj["actions"][i]
-    #     env_gt.set_state(traj["env_states"][i])
-    #     _ = env.step(action)
-    #     _ = env_gt.step(action)
-    #     img = env.render("rgb_array")
-    #     img_gt = env_gt.render("rgb_array")
-    #     img_list.append(img)
-    #     img_gt_list.append(img_gt)
 
-    disc_action_list = []
     for i in range(traj_len):
-        cont_action = cont_actions[i]
+        action = actions[i]
         # assert np.allclose(_state, traj["env_states"][i],atol=1e-2)
         env_gt.set_state(traj["env_states"][-1])
-        # _ = env_gt.step(cont_action)
         tcp_pose_gt = env_gt.get_obs()["tcp_pose"]
         _state = env.get_state()
-        disc_action = select_disc(env, _state, tcp_pose_gt, cont_action[-1])
+        disc_action = select_disc(env, _state, tcp_pose_gt, action[-1])
         env.set_state(_state)
-        # import ipdb; ipdb.set_trace()
-        # env.step(disc2cont(disc_action))
-        # print(disc_action)
-        # print(select_disc(env, _state, env.get_obs()["tcp_pose"], cont_action[-1]))
-        print(f"disc_action: {disc_action}")
         _ = env.step(disc2cont(disc_action))
         img = env.render("rgb_array")
         img_gt = env_gt.render("rgb_array")
         img_list.append(img)
         img_gt_list.append(img_gt)
-        # disc_action_list.append(disc_action)
     
-    save_video(img_list, f"{k}_disc.mp4")
-    save_video(img_gt_list, f"{k}_cont.mp4")
+    save_video(img_list, f"{k}_xyzabc.mp4")
+    save_video(img_gt_list, f"{k}_gt.mp4")
     cnt += 1
-    if cnt > 1:
+    if cnt > 3:
         assert False
     

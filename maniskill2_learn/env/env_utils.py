@@ -178,8 +178,8 @@ def make_gym_env(
     if use_time_limit and not unwrapped:
         env = TimeLimit(env, int(max_episode_steps * time_horizon_factor))
 
-    # env = ExtendedEnv(env, reward_scale, use_cost)
-    env = DiscreteEnv(env, reward_scale, use_cost)
+    env = ExtendedEnv(env, reward_scale, use_cost)
+    # env = DiscreteEnv(env, reward_scale, use_cost)
 
     if buffers is not None:
         env = BufferAugmentedEnv(env, buffers=buffers)

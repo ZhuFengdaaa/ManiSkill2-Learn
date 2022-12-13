@@ -61,7 +61,7 @@ def save_video(image_list, filename):
     video_writer.release()
 
 cnt = 0
-for k in data:
+for _, k in enumerate(data):
     traj = data[k]
     states = traj["env_states"]
     actions = traj["actions"]
